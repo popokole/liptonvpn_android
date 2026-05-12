@@ -29,8 +29,11 @@ jobs:
           cache-read-only: false
 
       - name: Decode keystore
+        env:
+          KEYSTORE_B64: ${{ secrets.SIGNING_KEY_BASE64 }}
         run: |
-          echo "${{ secrets.SIGNING_KEY_BASE64 }}" | tr -d '\n' | base64 --decode > lipton_android_app/lipton.jks
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > lipton_android_app/lipton.jks
+          ls -la lipton_android_app/lipton.jks
 
       - name: Build & Sign Release APK
         working-directory: lipton_android_app
