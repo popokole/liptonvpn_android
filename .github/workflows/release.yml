@@ -40,11 +40,12 @@ jobs:
         uses: r0adkll/sign-android-release@v1
         id: sign
         with:
-          releaseDirectory: lipton_android_app/app/build/outputs/apk/release
+          releaseDirectory:  lipton_android_app/app/build/outputs/apk/release
           signingKeyBase64:  ${{ secrets.SIGNING_KEY_BASE64 }}
           alias:             ${{ secrets.SIGNING_KEY_ALIAS }}
           keyStorePassword:  ${{ secrets.SIGNING_STORE_PASSWORD }}
           keyPassword:       ${{ secrets.SIGNING_KEY_PASSWORD }}
+          buildToolsVersion: 34.0.0
 
       - name: Get version from tag
         id: version
