@@ -1,0 +1,72 @@
+name: Build & Release APK
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+
+      - name: Make gradlew executable
+        working-directory: lipton_android_app
+        run: chmod +x gradlew
+
+      - name: Build Release APK
+        working-directory: lipton_android_app
+        run: ./gradlew assembleRelease --no-daemon
+        env:
+          SIGNING_KEY_ALIAS:       ${{ secrets.SIGNING_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD:    ${{ secrets.SIGNING_KEY_PASSWORD }}
+          SIGNING_STORE_PASSWORD:  ${{ secrets.SIGNING_STORE_PASSWORD }}
+
+      - name: Sign APK
+        uses: r0adkll/sign-android-release@v1
+        id: sign
+        with:
+          releaseDirectory: lipton_android_app/app/build/outputs/apk/release
+          signingKeyBase64:  ${{ secrets.SIGNING_KEY_BASE64 }}
+          alias:             ${{ secrets.SIGNING_KEY_ALIAS }}
+          keyStorePassword:  ${{ secrets.SIGNING_STORE_PASSWORD }}
+          keyPassword:       ${{ secrets.SIGNING_KEY_PASSWORD }}
+
+      - name: Get version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: LiptonVPN v${{ steps.version.outputs.version }}
+          files: ${{ steps.sign.outputs.signedReleaseFile }}
+          generate_release_notes: false
+          body: |
+            ## Обновление LiptonVPN v${{ steps.version.outputs.version }}
+
+            📱 Скачайте APK ниже и установите на телефон.
+
+            > Если Android предупреждает об установке из неизвестных источников — разрешите для этого файла.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
