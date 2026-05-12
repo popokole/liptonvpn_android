@@ -1,0 +1,309 @@
+package com.lipton.vpn.service
+
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Intent
+import android.net.VpnService
+import android.os.Binder
+import android.os.Build
+import android.os.IBinder
+import android.os.ParcelFileDescriptor
+import android.util.Log
+import androidx.core.app.NotificationCompat
+import com.lipton.vpn.MainActivity
+import com.lipton.vpn.R
+import com.lipton.vpn.data.SettingsManager
+import com.lipton.vpn.data.XrayConfigGenerator
+import com.lipton.vpn.data.model.Server
+import kotlinx.coroutines.*
+import java.io.File
+
+class LiptonVpnService : VpnService() {
+
+    companion object {
+        const val ACTION_START  = "com.lipton.vpn.START"
+        const val ACTION_STOP   = "com.lipton.vpn.STOP"
+        const val EXTRA_SERVER_ID = "server_id"
+        private const val NOTIF_CHANNEL = "lipton_vpn"
+        private const val NOTIF_ID = 1
+        private const val TAG = "LiptonVPN"
+    }
+
+    inner class LocalBinder : Binder() {
+        fun getService(): LiptonVpnService = this@LiptonVpnService
+    }
+
+    private val binder = LocalBinder()
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    private var vpnInterface: ParcelFileDescriptor? = null
+    private var xrayProcess: Process? = null
+    private var currentServer: Server? = null
+
+    var statusListener: ((VpnStatus) -> Unit)? = null
+    var logListener:    ((String)    -> Unit)? = null
+
+    private var xrayLogReader: java.io.BufferedReader? = null
+
+    enum class VpnStatus { DISCONNECTED, CONNECTING, CONNECTED, DISCONNECTING, ERROR }
+
+    private var _status = VpnStatus.DISCONNECTED
+    var status: VpnStatus
+        get() = _status
+        private set(v) {
+            _status = v
+            statusListener?.invoke(v)
+        }
+
+    override fun onBind(intent: Intent): IBinder = binder
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        when (intent?.action) {
+            ACTION_START -> {
+                val serverId = intent.getStringExtra(EXTRA_SERVER_ID) ?: return START_NOT_STICKY
+                scope.launch { startVpnForServer(serverId) }
+            }
+            ACTION_STOP  -> scope.launch { stopVpn() }
+        }
+        return START_STICKY
+    }
+
+    // ─── Start VPN ────────────────────────────────────────────────────────────
+
+    private suspend fun startVpnForServer(serverId: String) {
+        val settings = SettingsManager(applicationContext)
+        val subs = settings.getSubscriptions()
+        val server = subs.flatMap { it.servers }.find { it.id == serverId } ?: run {
+            Log.e(TAG, "Сервер не найден: $serverId")
+            status = VpnStatus.ERROR
+            return
+        }
+        startVpn(server, settings)
+    }
+
+    suspend fun startVpn(server: Server, settings: SettingsManager) = withContext(Dispatchers.Main) {
+        if (status == VpnStatus.CONNECTED || status == VpnStatus.CONNECTING) stopVpn()
+
+        status = VpnStatus.CONNECTING
+        currentServer = server
+
+        withContext(Dispatchers.IO) {
+            try {
+                val bypassRu = settings.getBypassRu()
+                val bypassDomains = settings.getBypassDomains()
+                val socksPort = settings.getSocksPort()
+                val httpPort = settings.getHttpPort()
+
+                val config = XrayConfigGenerator.generate(
+                    server = server,
+                    socksPort = socksPort,
+                    httpPort = httpPort,
+                    bypassRu = bypassRu,
+                    bypassDomains = bypassDomains,
+                )
+
+                val xrayBin = findXrayBinary()
+                val configFile = File(filesDir, "xray_config.json").also { it.writeText(config) }
+                val geoDir = ensureGeoFiles()
+
+                stopXrayProcess()
+
+                val pb = ProcessBuilder(xrayBin, "-config", configFile.absolutePath)
+                    .redirectErrorStream(true)
+                pb.environment()["XRAY_LOCATION_ASSET"] = geoDir
+                xrayProcess = pb.start()
+
+                val connected = waitForXrayReady(xrayProcess!!)
+                if (!connected) {
+                    withContext(Dispatchers.Main) { status = VpnStatus.ERROR }
+                    stopXrayProcess()
+                    return@withContext
+                }
+
+                establishTunnel()
+                startForeground(NOTIF_ID, buildNotification(server.remark))
+                withContext(Dispatchers.Main) { status = VpnStatus.CONNECTED }
+                Log.i(TAG, "Подключено: ${server.remark}")
+
+                startLogCapture()
+                monitorXrayProcess()
+
+            } catch (e: Exception) {
+                Log.e(TAG, "Ошибка подключения", e)
+                withContext(Dispatchers.Main) { status = VpnStatus.ERROR }
+                cleanupVpn()
+            }
+        }
+    }
+
+    // ─── TUN interface ────────────────────────────────────────────────────────
+
+    private fun establishTunnel() {
+        vpnInterface?.close()
+        vpnInterface = Builder()
+            .setSession("LiptonVPN")
+            .addAddress("10.10.10.1", 24)
+            .addRoute("0.0.0.0", 0)
+            .addRoute("::", 0)
+            .addDnsServer("8.8.8.8")
+            .addDnsServer("1.1.1.1")
+            .addDnsServer("8.8.4.4")
+            .setMtu(1500)
+            .also { builder ->
+                // Не маршрутизируем адрес сервера через VPN
+                currentServer?.let { s ->
+                    try { builder.addDisallowedApplication(packageName) } catch (_: Exception) {}
+                }
+            }
+            .establish()
+    }
+
+    // ─── Stop VPN ─────────────────────────────────────────────────────────────
+
+    suspend fun stopVpn() = withContext(Dispatchers.Main) {
+        status = VpnStatus.DISCONNECTING
+        withContext(Dispatchers.IO) { cleanupVpn() }
+        status = VpnStatus.DISCONNECTED
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
+    }
+
+    private fun cleanupVpn() {
+        stopXrayProcess()
+        vpnInterface?.close()
+        vpnInterface = null
+    }
+
+    private fun stopXrayProcess() {
+        xrayProcess?.let { proc ->
+            try {
+                proc.destroy()
+                proc.waitFor()
+            } catch (_: Exception) {}
+        }
+        xrayProcess = null
+    }
+
+    // ─── Xray helpers ─────────────────────────────────────────────────────────
+
+    private fun findXrayBinary(): String {
+        val nativeDir = applicationInfo.nativeLibraryDir
+        val f = File(nativeDir, "libxray.so")
+        if (f.exists()) {
+            f.setExecutable(true, true)
+            return f.absolutePath
+        }
+        throw Exception("Бинарный файл xray не найден. Добавьте libxray.so в app/libs/jniLibs/arm64-v8a/")
+    }
+
+    private fun ensureGeoFiles(): String {
+        val geoDir = File(filesDir, "xray").also { it.mkdirs() }
+        listOf("geoip.dat", "geosite.dat").forEach { name ->
+            val dest = File(geoDir, name)
+            if (!dest.exists()) {
+                try {
+                    assets.open("xray/$name").use { input ->
+                        dest.outputStream().use { output -> input.copyTo(output) }
+                    }
+                    Log.i(TAG, "Скопирован $name -> ${dest.absolutePath}")
+                } catch (e: Exception) {
+                    Log.w(TAG, "Не найден assets/xray/$name: ${e.message}")
+                }
+            }
+        }
+        return geoDir.absolutePath
+    }
+
+    private fun waitForXrayReady(proc: Process): Boolean {
+        val reader = proc.inputStream.bufferedReader()
+        xrayLogReader = reader
+        val deadline = System.currentTimeMillis() + 8000
+        try {
+            while (System.currentTimeMillis() < deadline) {
+                if (!proc.isAlive) return false
+                val line = reader.readLine() ?: break
+                Log.d(TAG, "[xray] $line")
+                logListener?.invoke(line)
+                if (line.contains("started") || line.contains("Running") || line.contains("[Warning]")) {
+                    return true
+                }
+            }
+        } catch (_: Exception) {}
+        return proc.isAlive
+    }
+
+    private fun startLogCapture() {
+        scope.launch(Dispatchers.IO) {
+            val reader = xrayLogReader ?: return@launch
+            try {
+                var line: String?
+                while (reader.readLine().also { line = it } != null) {
+                    val l = line!!
+                    Log.d(TAG, "[xray] $l")
+                    logListener?.invoke(l)
+                }
+            } catch (_: Exception) {}
+        }
+    }
+
+    private fun monitorXrayProcess() {
+        scope.launch(Dispatchers.IO) {
+            try {
+                xrayProcess?.waitFor()
+                if (status == VpnStatus.CONNECTED) {
+                    withContext(Dispatchers.Main) { status = VpnStatus.DISCONNECTED }
+                    cleanupVpn()
+                    stopForeground(STOP_FOREGROUND_REMOVE)
+                    stopSelf()
+                }
+            } catch (_: Exception) {}
+        }
+    }
+
+    // ─── Notification ─────────────────────────────────────────────────────────
+
+    private fun buildNotification(serverName: String): Notification {
+        createNotifChannel()
+        val pendingIntent = PendingIntent.getActivity(
+            this, 0,
+            Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val stopIntent = PendingIntent.getService(
+            this, 0,
+            Intent(this, LiptonVpnService::class.java).apply { action = ACTION_STOP },
+            PendingIntent.FLAG_IMMUTABLE,
+        )
+        return NotificationCompat.Builder(this, NOTIF_CHANNEL)
+            .setContentTitle("LiptonVPN подключён")
+            .setContentText(serverName.replace(Regex("[\uD83C][\uDDE6-\uDDFF][\uD83C][\uDDE6-\uDDFF]\\s*"), "").trim())
+            .setSmallIcon(R.drawable.ic_notif)
+            .setContentIntent(pendingIntent)
+            .addAction(0, "Отключить", stopIntent)
+            .setOngoing(true)
+            .build()
+    }
+
+    private fun createNotifChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                NOTIF_CHANNEL,
+                "LiptonVPN",
+                NotificationManager.IMPORTANCE_LOW,
+            ).apply { description = "Статус VPN соединения" }
+            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+        }
+    }
+
+    override fun onDestroy() {
+        scope.cancel()
+        // Destroy process without waitFor() to avoid blocking the main thread
+        try { xrayProcess?.destroy() } catch (_: Exception) {}
+        xrayProcess = null
+        try { vpnInterface?.close() } catch (_: Exception) {}
+        vpnInterface = null
+        super.onDestroy()
+    }
+}

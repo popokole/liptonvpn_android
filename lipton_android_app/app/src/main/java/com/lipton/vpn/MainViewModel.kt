@@ -1,0 +1,308 @@
+package com.lipton.vpn
+
+import android.app.Application
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.content.ServiceConnection
+import android.net.VpnService
+import android.os.IBinder
+import androidx.activity.result.ActivityResultLauncher
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import com.lipton.vpn.data.SettingsManager
+import com.lipton.vpn.data.SubscriptionManager
+import com.lipton.vpn.data.UpdateChecker
+import com.lipton.vpn.data.UpdateInfo
+import com.lipton.vpn.data.model.Subscription
+import com.lipton.vpn.service.LiptonVpnService
+import com.lipton.vpn.ui.theme.AppTheme
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.ConcurrentLinkedQueue
+
+data class UiState(
+    val status:              LiptonVpnService.VpnStatus = LiptonVpnService.VpnStatus.DISCONNECTED,
+    val subscriptions:       List<Subscription> = emptyList(),
+    val activeServerId:      String?            = null,
+    val bypassRu:            Boolean            = true,
+    val bypassDomains:       List<String>       = emptyList(),
+    val autostart:           Boolean            = false,
+    val pinging:             Boolean            = false,
+    val loading:             Boolean            = true,
+    val themeMode:           AppTheme           = AppTheme.SYSTEM,
+    val autoConnectOnLaunch: Boolean            = false,
+    val logLines:            List<String>       = emptyList(),
+    val trialUsed:           Boolean            = false,
+    val isFirstLaunch:       Boolean            = false,
+    val updateInfo:          UpdateInfo?        = null,
+)
+
+class MainViewModel(app: Application) : AndroidViewModel(app) {
+
+    val settings   = SettingsManager(app)
+    val subManager = SubscriptionManager(settings)
+
+    private val _state = MutableStateFlow(UiState())
+    val state: StateFlow<UiState> = _state.asStateFlow()
+
+    private var vpnService:            LiptonVpnService?              = null
+    private var vpnPermissionLauncher: ActivityResultLauncher<Intent>? = null
+
+    // Log debouncing — batch xray log lines to avoid per-line recomposition
+    private val pendingLogLines  = ConcurrentLinkedQueue<String>()
+    private val logFlushPending  = AtomicBoolean(false)
+
+    private val serviceConnection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+            val binder = service as? LiptonVpnService.LocalBinder ?: return
+            vpnService = binder.getService().also { svc ->
+                svc.statusListener = { newStatus ->
+                    _state.update { it.copy(status = newStatus) }
+                }
+                svc.logListener = { line ->
+                    pendingLogLines.add(line)
+                    // Start a flush job only if none is pending — at most one per 150ms
+                    if (logFlushPending.compareAndSet(false, true)) {
+                        viewModelScope.launch {
+                            kotlinx.coroutines.delay(150)
+                            logFlushPending.set(false)
+                            val batch = buildList<String> {
+                                while (true) add(pendingLogLines.poll() ?: break)
+                            }
+                            if (batch.isNotEmpty()) {
+                                _state.update { st ->
+                                    st.copy(logLines = (st.logLines + batch).takeLast(500))
+                                }
+                            }
+                        }
+                    }
+                }
+                _state.update { it.copy(status = svc.status) }
+            }
+        }
+        override fun onServiceDisconnected(name: ComponentName?) {
+            vpnService = null
+            _state.update { it.copy(status = LiptonVpnService.VpnStatus.DISCONNECTED) }
+        }
+    }
+
+    init {
+        loadInitialData()
+        observeSettings()
+        checkForUpdate()
+    }
+
+    private fun checkForUpdate() {
+        viewModelScope.launch {
+            val info = UpdateChecker.checkForUpdate(
+                com.lipton.vpn.BuildConfig.VERSION_NAME
+            )
+            if (info != null) _state.update { it.copy(updateInfo = info) }
+        }
+    }
+
+    fun dismissUpdate() = _state.update { it.copy(updateInfo = null) }
+
+    private fun loadInitialData() {
+        viewModelScope.launch {
+            val subs            = settings.getSubscriptions()
+            val activeId        = settings.getActiveServerId()
+            val bypassRu        = settings.getBypassRu()
+            val bypassDomains   = settings.getBypassDomains()
+            val autostart       = settings.getAutostart()
+            val themeMode       = settings.getThemeMode()
+            val autoConnect     = settings.getAutoConnectOnLaunch()
+            val trialUsed       = settings.getTrialAdded()
+            val firstLaunchDone = settings.getFirstLaunchDone()
+
+            if (!firstLaunchDone) settings.setFirstLaunchDone(true)
+
+            _state.update {
+                it.copy(
+                    subscriptions       = subs,
+                    activeServerId      = activeId,
+                    bypassRu            = bypassRu,
+                    bypassDomains       = bypassDomains,
+                    autostart           = autostart,
+                    themeMode           = themeMode,
+                    autoConnectOnLaunch = autoConnect,
+                    trialUsed           = trialUsed,
+                    isFirstLaunch       = !firstLaunchDone,
+                    loading             = false,
+                )
+            }
+        }
+    }
+
+    private fun observeSettings() {
+        viewModelScope.launch {
+            settings.subscriptionsFlow.collect { subs ->
+                _state.update { it.copy(subscriptions = subs) }
+            }
+        }
+        viewModelScope.launch {
+            settings.bypassRuFlow.collect { v ->
+                _state.update { it.copy(bypassRu = v) }
+            }
+        }
+        viewModelScope.launch {
+            settings.bypassDomainsFlow.collect { domains ->
+                _state.update { it.copy(bypassDomains = domains) }
+            }
+        }
+    }
+
+    // ─── Service binding ─────────────────────────────────────────────────────
+
+    fun bindService(context: Context) {
+        val intent = Intent(context, LiptonVpnService::class.java)
+        context.bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
+    }
+
+    fun unbindService(context: Context) {
+        try { context.unbindService(serviceConnection) } catch (_: Exception) {}
+    }
+
+    fun setPermissionLauncher(launcher: ActivityResultLauncher<Intent>) {
+        vpnPermissionLauncher = launcher
+    }
+
+    // ─── VPN control ─────────────────────────────────────────────────────────
+
+    fun handleConnectToggle(context: Context) {
+        val st = state.value.status
+        if (st == LiptonVpnService.VpnStatus.CONNECTING ||
+            st == LiptonVpnService.VpnStatus.DISCONNECTING) return
+
+        if (st == LiptonVpnService.VpnStatus.CONNECTED) {
+            disconnect(context)
+            return
+        }
+
+        val serverId = state.value.activeServerId
+            ?: state.value.subscriptions.flatMap { it.servers }.firstOrNull()?.id
+            ?: return
+
+        val permIntent = VpnService.prepare(context)
+        if (permIntent != null) {
+            vpnPermissionLauncher?.launch(permIntent)
+        } else {
+            connect(context, serverId)
+        }
+    }
+
+    fun connect(context: Context, serverId: String) {
+        viewModelScope.launch { settings.setActiveServerId(serverId) }
+        _state.update { it.copy(activeServerId = serverId) }
+
+        Intent(context, LiptonVpnService::class.java).apply {
+            action = LiptonVpnService.ACTION_START
+            putExtra(LiptonVpnService.EXTRA_SERVER_ID, serverId)
+            context.startForegroundService(this)
+        }
+    }
+
+    fun disconnect(context: Context) {
+        Intent(context, LiptonVpnService::class.java).apply {
+            action = LiptonVpnService.ACTION_STOP
+            context.startService(this)
+        }
+    }
+
+    fun selectServer(context: Context, serverId: String) {
+        viewModelScope.launch { settings.setActiveServerId(serverId) }
+        _state.update { it.copy(activeServerId = serverId) }
+        if (state.value.status == LiptonVpnService.VpnStatus.CONNECTED) {
+            connect(context, serverId)
+        }
+    }
+
+    // ─── Subscriptions ────────────────────────────────────────────────────────
+
+    suspend fun addSubscription(url: String)            = subManager.add(url)
+    suspend fun removeSubscription(subId: String)       = subManager.remove(subId)
+    suspend fun refreshSubscription(subId: String)      = subManager.refresh(subId)
+
+    fun pingAll(subId: String) {
+        viewModelScope.launch {
+            _state.update { it.copy(pinging = true) }
+            subManager.pingAll(subId)
+            _state.update { it.copy(pinging = false) }
+        }
+    }
+
+    suspend fun getTrialSubscription(durationMinutes: Int) {
+        val hwid = settings.getHwid()
+        subManager.getTrialSubscription(hwid, durationMinutes)
+        settings.setTrialAdded(true)
+        _state.update { it.copy(trialUsed = true) }
+    }
+
+    // ─── Settings ─────────────────────────────────────────────────────────────
+
+    fun setBypassRu(enabled: Boolean) {
+        viewModelScope.launch { settings.setBypassRu(enabled) }
+    }
+
+    fun setAutostart(enabled: Boolean) {
+        viewModelScope.launch { settings.setAutostart(enabled) }
+        _state.update { it.copy(autostart = enabled) }
+    }
+
+    fun setThemeMode(theme: AppTheme) {
+        viewModelScope.launch { settings.setThemeMode(theme) }
+        _state.update { it.copy(themeMode = theme) }
+    }
+
+    fun setAutoConnectOnLaunch(enabled: Boolean) {
+        viewModelScope.launch { settings.setAutoConnectOnLaunch(enabled) }
+        _state.update { it.copy(autoConnectOnLaunch = enabled) }
+    }
+
+    fun addBypassDomain(domain: String) {
+        viewModelScope.launch {
+            val current = settings.getBypassDomains().toMutableList()
+            if (!current.contains(domain)) {
+                current.add(domain)
+                settings.saveBypassDomains(current)
+            }
+        }
+    }
+
+    fun removeBypassDomain(domain: String) {
+        viewModelScope.launch {
+            val current = settings.getBypassDomains().toMutableList()
+            current.remove(domain)
+            settings.saveBypassDomains(current)
+        }
+    }
+
+    fun clearLogs() {
+        pendingLogLines.clear()
+        _state.update { it.copy(logLines = emptyList()) }
+    }
+
+    fun resetProfile(context: Context) {
+        viewModelScope.launch {
+            disconnect(context)
+            settings.reset()
+            _state.update {
+                it.copy(
+                    subscriptions  = emptyList(),
+                    activeServerId = null,
+                    bypassDomains  = emptyList(),
+                    trialUsed      = false,
+                )
+            }
+        }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        vpnService?.statusListener = null
+        vpnService?.logListener    = null
+        pendingLogLines.clear()
+    }
+}

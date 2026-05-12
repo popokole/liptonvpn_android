@@ -1,0 +1,23 @@
+# Gradle
+.gradle/
+build/
+**/build/
+local.properties
+
+# Android Studio
+.idea/
+*.iml
+.DS_Store
+captures/
+*.orig
+
+# Keystore (НИКОГДА не коммитить)
+*.jks
+*.keystore
+
+# APK / AAB
+*.apk
+*.aab
+
+# NDK
+.cxx/

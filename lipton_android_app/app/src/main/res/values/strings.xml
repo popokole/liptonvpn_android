@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">LiptonVPN</string>
+    <string name="vpn_connected">VPN подключён</string>
+    <string name="vpn_disconnected">VPN отключён</string>
+    <string name="notification_channel_name">LiptonVPN</string>
+    <string name="notification_channel_desc">Статус VPN соединения</string>
+    <string name="disconnect">Отключить</string>
+</resources>
