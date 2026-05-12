@@ -45,7 +45,6 @@ fun SubscriptionPanel(
     onBuyClick:    () -> Unit,
     modifier:      Modifier = Modifier,
 ) {
-    val lc    = LocalLiptonColors.current
     val scope = rememberCoroutineScope()
 
     var showAddForm by remember { mutableStateOf(false) }
@@ -331,7 +330,6 @@ private fun SubscriptionCard(
 
 @Composable
 private fun TrialCountdown(expireMs: Long) {
-    val lc = LocalLiptonColors.current
     var remainingMs by remember { mutableLongStateOf(expireMs - System.currentTimeMillis()) }
 
     LaunchedEffect(expireMs) {
