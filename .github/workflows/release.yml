@@ -28,24 +28,18 @@ jobs:
           gradle-version: '8.4'
           cache-read-only: false
 
-      - name: Build Release APK
+      - name: Decode keystore
+        run: |
+          echo "${{ secrets.SIGNING_KEY_BASE64 }}" | base64 -d > lipton_android_app/lipton.jks
+
+      - name: Build & Sign Release APK
         working-directory: lipton_android_app
         run: gradle assembleRelease --no-daemon
         env:
-          SIGNING_KEY_ALIAS:       ${{ secrets.SIGNING_KEY_ALIAS }}
-          SIGNING_KEY_PASSWORD:    ${{ secrets.SIGNING_KEY_PASSWORD }}
-          SIGNING_STORE_PASSWORD:  ${{ secrets.SIGNING_STORE_PASSWORD }}
-
-      - name: Sign APK
-        uses: r0adkll/sign-android-release@v1
-        id: sign
-        with:
-          releaseDirectory:  lipton_android_app/app/build/outputs/apk/release
-          signingKeyBase64:  ${{ secrets.SIGNING_KEY_BASE64 }}
-          alias:             ${{ secrets.SIGNING_KEY_ALIAS }}
-          keyStorePassword:  ${{ secrets.SIGNING_STORE_PASSWORD }}
-          keyPassword:       ${{ secrets.SIGNING_KEY_PASSWORD }}
-          buildToolsVersion: 34.0.0
+          KEYSTORE_PATH:          lipton.jks
+          SIGNING_KEY_ALIAS:      ${{ secrets.SIGNING_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD:   ${{ secrets.SIGNING_KEY_PASSWORD }}
+          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
 
       - name: Get version from tag
         id: version
@@ -55,10 +49,10 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           name: LiptonVPN v${{ steps.version.outputs.version }}
-          files: ${{ steps.sign.outputs.signedReleaseFile }}
+          files: lipton_android_app/app/build/outputs/apk/release/*.apk
           generate_release_notes: false
           body: |
-            ## Обновление LiptonVPN v${{ steps.version.outputs.version }}
+            ## LiptonVPN v${{ steps.version.outputs.version }}
 
             📱 Скачайте APK ниже и установите на телефон.
 
