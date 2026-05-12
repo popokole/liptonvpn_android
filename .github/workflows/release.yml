@@ -22,21 +22,15 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Cache Gradle
-        uses: actions/cache@v4
+      - name: Setup Gradle 8.4
+        uses: gradle/actions/setup-gradle@v3
         with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-
-      - name: Make gradlew executable
-        working-directory: lipton_android_app
-        run: chmod +x gradlew
+          gradle-version: '8.4'
+          cache-read-only: false
 
       - name: Build Release APK
         working-directory: lipton_android_app
-        run: ./gradlew assembleRelease --no-daemon
+        run: gradle assembleRelease --no-daemon
         env:
           SIGNING_KEY_ALIAS:       ${{ secrets.SIGNING_KEY_ALIAS }}
           SIGNING_KEY_PASSWORD:    ${{ secrets.SIGNING_KEY_PASSWORD }}
