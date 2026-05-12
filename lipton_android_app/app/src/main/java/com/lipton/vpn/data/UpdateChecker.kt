@@ -5,6 +5,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
+import java.io.File
 import java.util.concurrent.TimeUnit
 
 private const val RELEASES_URL = "https://api.github.com/repos/popokole/liptonvpn_android/releases/latest"
@@ -44,6 +45,39 @@ object UpdateChecker {
 
             if (isNewer(tag, currentVersion)) UpdateInfo(tag, apkUrl, releaseUrl) else null
         }.getOrNull()
+    }
+
+    suspend fun downloadApk(
+        downloadUrl: String,
+        destFile: File,
+        onProgress: (Int) -> Unit,
+    ): Boolean = withContext(Dispatchers.IO) {
+        runCatching {
+            val dlClient = OkHttpClient.Builder()
+                .connectTimeout(30, TimeUnit.SECONDS)
+                .readTimeout(120, TimeUnit.SECONDS)
+                .build()
+            val request = Request.Builder().url(downloadUrl).build()
+            dlClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext false
+                val body = response.body ?: return@withContext false
+                val total = body.contentLength()
+                destFile.parentFile?.mkdirs()
+                var downloaded = 0L
+                destFile.outputStream().use { out ->
+                    body.byteStream().use { input ->
+                        val buf = ByteArray(8192)
+                        var read: Int
+                        while (input.read(buf).also { read = it } != -1) {
+                            out.write(buf, 0, read)
+                            downloaded += read
+                            if (total > 0) onProgress(((downloaded * 100) / total).toInt())
+                        }
+                    }
+                }
+                true
+            }
+        }.getOrDefault(false)
     }
 
     private fun isNewer(remote: String, local: String): Boolean {

@@ -4,6 +4,8 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.appwidget.AppWidgetManager
+import android.content.ComponentName
 import android.content.Intent
 import android.net.VpnService
 import android.os.Binder
@@ -17,6 +19,7 @@ import com.lipton.vpn.R
 import com.lipton.vpn.data.SettingsManager
 import com.lipton.vpn.data.XrayConfigGenerator
 import com.lipton.vpn.data.model.Server
+import com.lipton.vpn.widget.LiptonWidget
 import kotlinx.coroutines.*
 import java.io.File
 
@@ -29,6 +32,9 @@ class LiptonVpnService : VpnService() {
         private const val NOTIF_CHANNEL = "lipton_vpn"
         private const val NOTIF_ID = 1
         private const val TAG = "LiptonVPN"
+
+        @Volatile var isConnected: Boolean = false
+            private set
     }
 
     inner class LocalBinder : Binder() {
@@ -84,7 +90,13 @@ class LiptonVpnService : VpnService() {
     }
 
     suspend fun startVpn(server: Server, settings: SettingsManager) = withContext(Dispatchers.Main) {
-        if (status == VpnStatus.CONNECTED || status == VpnStatus.CONNECTING) stopVpn()
+        if (status == VpnStatus.CONNECTED || status == VpnStatus.CONNECTING) {
+            // Clean up without calling stopSelf() — service stays alive for reconnect
+            status = VpnStatus.DISCONNECTING
+            withContext(Dispatchers.IO) { cleanupVpn() }
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            isConnected = false
+        }
 
         status = VpnStatus.CONNECTING
         currentServer = server
@@ -124,6 +136,8 @@ class LiptonVpnService : VpnService() {
 
                 establishTunnel()
                 startForeground(NOTIF_ID, buildNotification(server.remark))
+                isConnected = true
+                notifyWidgets()
                 withContext(Dispatchers.Main) { status = VpnStatus.CONNECTED }
                 Log.i(TAG, "Подключено: ${server.remark}")
 
@@ -165,6 +179,8 @@ class LiptonVpnService : VpnService() {
     suspend fun stopVpn() = withContext(Dispatchers.Main) {
         status = VpnStatus.DISCONNECTING
         withContext(Dispatchers.IO) { cleanupVpn() }
+        isConnected = false
+        notifyWidgets()
         status = VpnStatus.DISCONNECTED
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
@@ -253,6 +269,7 @@ class LiptonVpnService : VpnService() {
             try {
                 xrayProcess?.waitFor()
                 if (status == VpnStatus.CONNECTED) {
+                    isConnected = false
                     withContext(Dispatchers.Main) { status = VpnStatus.DISCONNECTED }
                     cleanupVpn()
                     stopForeground(STOP_FOREGROUND_REMOVE)
@@ -297,9 +314,16 @@ class LiptonVpnService : VpnService() {
         }
     }
 
+    private fun notifyWidgets() {
+        val manager = AppWidgetManager.getInstance(this)
+        val ids = manager.getAppWidgetIds(ComponentName(this, LiptonWidget::class.java))
+        ids.forEach { LiptonWidget.updateWidget(this, manager, it) }
+    }
+
     override fun onDestroy() {
+        isConnected = false
+        notifyWidgets()
         scope.cancel()
-        // Destroy process without waitFor() to avoid blocking the main thread
         try { xrayProcess?.destroy() } catch (_: Exception) {}
         xrayProcess = null
         try { vpnInterface?.close() } catch (_: Exception) {}

@@ -5,9 +5,11 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
+import android.net.Uri
 import android.net.VpnService
 import android.os.IBinder
 import androidx.activity.result.ActivityResultLauncher
+import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.lipton.vpn.data.SettingsManager
@@ -19,6 +21,7 @@ import com.lipton.vpn.service.LiptonVpnService
 import com.lipton.vpn.ui.theme.AppTheme
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.ConcurrentLinkedQueue
 
@@ -37,6 +40,8 @@ data class UiState(
     val trialUsed:           Boolean            = false,
     val isFirstLaunch:       Boolean            = false,
     val updateInfo:          UpdateInfo?        = null,
+    val downloadProgress:    Int?               = null,
+    val downloadedApkPath:   String?            = null,
 )
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
@@ -109,7 +114,38 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (info != null) _state.update { it.copy(updateInfo = info) }
     }
 
-    fun dismissUpdate() = _state.update { it.copy(updateInfo = null) }
+    fun dismissFirstLaunch() = _state.update { it.copy(isFirstLaunch = false) }
+
+    fun dismissUpdate() = _state.update { it.copy(updateInfo = null, downloadProgress = null, downloadedApkPath = null) }
+
+    fun downloadUpdate() {
+        val url = state.value.updateInfo?.downloadUrl ?: return
+        viewModelScope.launch {
+            val destFile = File(getApplication<Application>().getExternalFilesDir("downloads"), "liptonvpn-update.apk")
+            _state.update { it.copy(downloadProgress = 0) }
+            val success = UpdateChecker.downloadApk(url, destFile) { progress ->
+                _state.update { it.copy(downloadProgress = progress) }
+            }
+            if (success) {
+                _state.update { it.copy(downloadProgress = 100, downloadedApkPath = destFile.absolutePath) }
+            } else {
+                _state.update { it.copy(downloadProgress = null) }
+            }
+        }
+    }
+
+    fun installUpdate(context: Context) {
+        val path = state.value.downloadedApkPath ?: return
+        val file = File(path)
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
+        context.startActivity(
+            Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "application/vnd.android.package-archive")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+        )
+    }
 
     private fun loadInitialData() {
         viewModelScope.launch {
@@ -250,6 +286,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setBypassRu(enabled: Boolean) {
         viewModelScope.launch { settings.setBypassRu(enabled) }
+        if (state.value.status == LiptonVpnService.VpnStatus.CONNECTED) {
+            val serverId = state.value.activeServerId
+                ?: state.value.subscriptions.flatMap { it.servers }.firstOrNull()?.id
+            if (serverId != null) connect(getApplication(), serverId)
+        }
     }
 
     fun setAutostart(enabled: Boolean) {

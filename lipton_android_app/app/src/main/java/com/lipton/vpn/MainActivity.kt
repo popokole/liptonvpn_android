@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.lifecycleScope
 import com.lipton.vpn.ui.MainScreen
+import com.lipton.vpn.ui.OnboardingScreen
 import com.lipton.vpn.ui.theme.LiptonTheme
 import kotlinx.coroutines.launch
 
@@ -46,11 +47,15 @@ class MainActivity : ComponentActivity() {
             val state by viewModel.state.collectAsState()
             LiptonTheme(appTheme = state.themeMode) {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    MainScreen(
-                        state = state,
-                        viewModel = viewModel,
-                        activity = this,
-                    )
+                    if (!state.loading && state.isFirstLaunch) {
+                        OnboardingScreen(onFinish = { viewModel.dismissFirstLaunch() })
+                    } else {
+                        MainScreen(
+                            state = state,
+                            viewModel = viewModel,
+                            activity = this,
+                        )
+                    }
                 }
             }
         }

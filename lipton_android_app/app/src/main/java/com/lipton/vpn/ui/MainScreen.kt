@@ -21,6 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lipton.vpn.ui.theme.Green3
 import com.lipton.vpn.MainViewModel
 import com.lipton.vpn.UiState
 import com.lipton.vpn.data.model.displayName
@@ -173,15 +174,14 @@ fun MainScreen(
                         },
                     )
 
-                    state.updateInfo?.let { update ->
+                    state.updateInfo?.let { _ ->
                         UpdateBanner(
-                            version  = update.versionName,
-                            onClick  = {
-                                activity.startActivity(
-                                    Intent(Intent.ACTION_VIEW, Uri.parse(update.downloadUrl))
-                                )
-                            },
-                            onDismiss = { viewModel.dismissUpdate() },
+                            version          = state.updateInfo!!.versionName,
+                            downloadProgress = state.downloadProgress,
+                            downloadedApkPath = state.downloadedApkPath,
+                            onDownload       = { viewModel.downloadUpdate() },
+                            onInstall        = { viewModel.installUpdate(activity) },
+                            onDismiss        = { viewModel.dismissUpdate() },
                         )
                     }
 
@@ -448,51 +448,94 @@ private fun Footer(activity: ComponentActivity) {
             Text("Telegram", fontSize = 12.5.sp, fontWeight = FontWeight.Medium, color = lc.textSecondary)
         }
 
-        Text("v1.0.0", fontSize = 11.sp, color = lc.textTertiary, fontWeight = FontWeight.Medium)
+        Text("v${com.lipton.vpn.BuildConfig.VERSION_NAME}", fontSize = 11.sp, color = lc.textTertiary, fontWeight = FontWeight.Medium)
     }
 }
 
 @Composable
-private fun UpdateBanner(version: String, onClick: () -> Unit, onDismiss: () -> Unit) {
+private fun UpdateBanner(
+    version:           String,
+    downloadProgress:  Int?,
+    downloadedApkPath: String?,
+    onDownload:        () -> Unit,
+    onInstall:         () -> Unit,
+    onDismiss:         () -> Unit,
+) {
     val lc = LocalLiptonColors.current
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(lc.bgCard)
             .border(1.dp, Green.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
             .padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text("⬆", fontSize = 18.sp)
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                "Доступно обновление v$version",
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = lc.textPrimary,
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text("⬆", fontSize = 18.sp)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "Доступно обновление v$version",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = lc.textPrimary,
+                )
+                Text(
+                    text = when {
+                        downloadedApkPath != null -> "Готово к установке"
+                        downloadProgress != null  -> "Скачивание $downloadProgress%..."
+                        else                      -> "Нажмите чтобы скачать"
+                    },
+                    fontSize = 11.sp,
+                    color = if (downloadedApkPath != null) Green else lc.textTertiary,
+                )
+            }
+            when {
+                downloadedApkPath != null -> Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Brush.linearGradient(listOf(Green, Green3)))
+                        .clickable(onClick = onInstall)
+                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                ) {
+                    Text("Установить", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                }
+                downloadProgress != null -> CircularProgressIndicator(
+                    modifier = Modifier.size(24.dp),
+                    color = Green,
+                    strokeWidth = 2.dp,
+                )
+                else -> Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Green.copy(alpha = 0.12f))
+                        .border(1.dp, Green.copy(alpha = 0.3f), RoundedCornerShape(10.dp))
+                        .clickable(onClick = onDownload)
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                ) {
+                    Text("Скачать", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Green)
+                }
+            }
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable(enabled = downloadProgress == null, onClick = onDismiss),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("✕", fontSize = 12.sp, color = lc.textTertiary)
+            }
+        }
+        if (downloadProgress != null && downloadedApkPath == null) {
+            LinearProgressIndicator(
+                progress = { downloadProgress / 100f },
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(4.dp)),
+                color = Green,
+                trackColor = Green.copy(alpha = 0.15f),
             )
-            Text("Нажмите чтобы скачать", fontSize = 11.sp, color = lc.textTertiary)
-        }
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(10.dp))
-                .background(Green.copy(alpha = 0.12f))
-                .border(1.dp, Green.copy(alpha = 0.3f), RoundedCornerShape(10.dp))
-                .clickable(onClick = onClick)
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-        ) {
-            Text("Скачать", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Green)
-        }
-        Box(
-            modifier = Modifier
-                .size(28.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .clickable(onClick = onDismiss),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text("✕", fontSize = 12.sp, color = lc.textTertiary)
         }
     }
 }
