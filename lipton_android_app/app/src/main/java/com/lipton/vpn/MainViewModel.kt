@@ -95,12 +95,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun checkForUpdate() {
-        viewModelScope.launch {
-            val info = UpdateChecker.checkForUpdate(
-                com.lipton.vpn.BuildConfig.VERSION_NAME
-            )
-            if (info != null) _state.update { it.copy(updateInfo = info) }
-        }
+        viewModelScope.launch { doCheckUpdate() }
+    }
+
+    suspend fun manualCheckUpdate(): Boolean {
+        val info = UpdateChecker.checkForUpdate(com.lipton.vpn.BuildConfig.VERSION_NAME)
+        _state.update { it.copy(updateInfo = info) }
+        return info != null
+    }
+
+    private suspend fun doCheckUpdate() {
+        val info = UpdateChecker.checkForUpdate(com.lipton.vpn.BuildConfig.VERSION_NAME)
+        if (info != null) _state.update { it.copy(updateInfo = info) }
     }
 
     fun dismissUpdate() = _state.update { it.copy(updateInfo = null) }

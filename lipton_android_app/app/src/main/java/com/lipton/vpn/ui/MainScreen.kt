@@ -215,6 +215,7 @@ fun MainScreen(
                     },
                     onReset              = { viewModel.resetProfile(activity) },
                     onClose              = { showSettings = false },
+                    onCheckUpdate        = { viewModel.manualCheckUpdate() },
                 )
             }
         }

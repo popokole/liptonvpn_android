@@ -44,6 +44,7 @@ fun SettingsPanel(
     onBuyClick:          () -> Unit,
     onReset:             () -> Unit,
     onClose:             () -> Unit,
+    onCheckUpdate:       suspend () -> Boolean,
 ) {
     val lc    = LocalLiptonColors.current
     val scope = rememberCoroutineScope()
@@ -149,6 +150,8 @@ fun SettingsPanel(
                         badge    = if (logLines.isNotEmpty()) "${logLines.size}" else null,
                         onClick  = { showLogs = true },
                     )
+
+                    UpdateCheckRow(scope = scope, onCheckUpdate = onCheckUpdate)
                 }
 
                 // ── ПРОБНЫЙ ДОСТУП ────────────────────────────────────────────
@@ -655,6 +658,72 @@ private fun BypassDomainsScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+private enum class UpdateState { IDLE, CHECKING, UP_TO_DATE, FOUND, ERROR }
+
+@Composable
+private fun UpdateCheckRow(
+    scope:         kotlinx.coroutines.CoroutineScope,
+    onCheckUpdate: suspend () -> Boolean,
+) {
+    val lc = LocalLiptonColors.current
+    var state by remember { mutableStateOf(UpdateState.IDLE) }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(lc.cardBg)
+            .border(1.dp, lc.cardBorder, RoundedCornerShape(14.dp))
+            .clickable(enabled = state != UpdateState.CHECKING) {
+                scope.launch {
+                    state = UpdateState.CHECKING
+                    state = try {
+                        if (onCheckUpdate()) UpdateState.FOUND else UpdateState.UP_TO_DATE
+                    } catch (_: Exception) { UpdateState.ERROR }
+                }
+            }
+            .padding(horizontal = 14.dp, vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Column {
+            Text("Проверить обновление", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = lc.textPrimary)
+            Text(
+                text = when (state) {
+                    UpdateState.IDLE       -> "v${com.lipton.vpn.BuildConfig.VERSION_NAME} — нажмите для проверки"
+                    UpdateState.CHECKING   -> "Проверяем..."
+                    UpdateState.UP_TO_DATE -> "Уже актуальная версия"
+                    UpdateState.FOUND      -> "Доступно обновление!"
+                    UpdateState.ERROR      -> "Ошибка проверки"
+                },
+                fontSize = 11.5.sp,
+                color = when (state) {
+                    UpdateState.FOUND  -> Green
+                    UpdateState.ERROR  -> Red
+                    else               -> lc.textTertiary
+                },
+            )
+        }
+        if (state == UpdateState.CHECKING) {
+            CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Green, strokeWidth = 2.dp)
+        } else {
+            Text(
+                text = when (state) {
+                    UpdateState.FOUND      -> "↓"
+                    UpdateState.UP_TO_DATE -> "✓"
+                    else                   -> "↻"
+                },
+                fontSize = 16.sp,
+                color = when (state) {
+                    UpdateState.FOUND      -> Green
+                    UpdateState.UP_TO_DATE -> Green
+                    else                   -> lc.textTertiary
+                },
+            )
         }
     }
 }
