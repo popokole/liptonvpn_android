@@ -30,7 +30,7 @@ jobs:
 
       - name: Decode keystore
         run: |
-          echo "${{ secrets.SIGNING_KEY_BASE64 }}" | base64 -d > lipton_android_app/lipton.jks
+          echo "${{ secrets.SIGNING_KEY_BASE64 }}" | tr -d '\n' | base64 --decode > lipton_android_app/lipton.jks
 
       - name: Build & Sign Release APK
         working-directory: lipton_android_app
