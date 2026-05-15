@@ -139,6 +139,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun watchTrialExpiry() {
         viewModelScope.launch {
+            // Ждём пока загрузятся данные (loadInitialData асинхронный)
+            state.first { !it.loading }
             while (true) {
                 val now = System.currentTimeMillis() / 1000L
                 val expired = state.value.subscriptions.filter { sub ->
