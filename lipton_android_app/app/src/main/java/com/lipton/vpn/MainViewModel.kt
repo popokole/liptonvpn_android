@@ -1,17 +1,23 @@
 package com.lipton.vpn
 
 import android.app.Application
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.net.Uri
 import android.net.VpnService
+import android.os.Build
 import android.os.IBinder
 import androidx.activity.result.ActivityResultLauncher
+import androidx.core.app.NotificationCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.lipton.vpn.R
 import com.lipton.vpn.data.SettingsManager
 import com.lipton.vpn.data.SubscriptionManager
 import com.lipton.vpn.data.UpdateChecker
@@ -111,7 +117,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private suspend fun doCheckUpdate() {
         val info = UpdateChecker.checkForUpdate(com.lipton.vpn.BuildConfig.VERSION_NAME)
-        if (info != null) _state.update { it.copy(updateInfo = info) }
+        if (info != null) {
+            _state.update { it.copy(updateInfo = info) }
+            downloadUpdate()
+        }
     }
 
     fun dismissFirstLaunch() = _state.update { it.copy(isFirstLaunch = false) }
@@ -119,19 +128,49 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun dismissUpdate() = _state.update { it.copy(updateInfo = null, downloadProgress = null, downloadedApkPath = null) }
 
     fun downloadUpdate() {
+        if (state.value.downloadProgress != null) return  // already downloading
         val url = state.value.updateInfo?.downloadUrl ?: return
         viewModelScope.launch {
-            val destFile = File(getApplication<Application>().getExternalFilesDir("downloads"), "liptonvpn-update.apk")
+            val app = getApplication<Application>()
+            val destFile = File(app.getExternalFilesDir("downloads"), "liptonvpn-update.apk")
             _state.update { it.copy(downloadProgress = 0) }
             val success = UpdateChecker.downloadApk(url, destFile) { progress ->
                 _state.update { it.copy(downloadProgress = progress) }
             }
             if (success) {
                 _state.update { it.copy(downloadProgress = 100, downloadedApkPath = destFile.absolutePath) }
+                showInstallNotification(app, destFile)
             } else {
                 _state.update { it.copy(downloadProgress = null) }
             }
         }
+    }
+
+    private fun showInstallNotification(app: Application, apkFile: File) {
+        val channelId = "lipton_updates"
+        val manager = app.getSystemService(NotificationManager::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            manager.createNotificationChannel(
+                NotificationChannel(channelId, "Обновления LiptonVPN", NotificationManager.IMPORTANCE_HIGH)
+            )
+        }
+        val uri = FileProvider.getUriForFile(app, "${app.packageName}.provider", apkFile)
+        val installIntent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, "application/vnd.android.package-archive")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        val pi = PendingIntent.getActivity(app, 0, installIntent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        val version = state.value.updateInfo?.versionName ?: ""
+        val notif = NotificationCompat.Builder(app, channelId)
+            .setContentTitle("Обновление LiptonVPN v$version готово")
+            .setContentText("Нажмите чтобы установить")
+            .setSmallIcon(R.drawable.ic_notif)
+            .setContentIntent(pi)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .build()
+        manager.notify(42, notif)
     }
 
     fun installUpdate(context: Context) {

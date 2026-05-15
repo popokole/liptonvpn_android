@@ -44,9 +44,10 @@ class LiptonVpnService : VpnService() {
     private val binder = LocalBinder()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    private var vpnInterface: ParcelFileDescriptor? = null
-    private var xrayProcess: Process? = null
-    private var currentServer: Server? = null
+    private var vpnInterface:      ParcelFileDescriptor? = null
+    private var xrayProcess:       Process?              = null
+    private var tun2socksProcess:  Process?              = null
+    private var currentServer:     Server?               = null
 
     var statusListener: ((VpnStatus) -> Unit)? = null
     var logListener:    ((String)    -> Unit)? = null
@@ -135,6 +136,19 @@ class LiptonVpnService : VpnService() {
                 }
 
                 establishTunnel()
+                val tunPfd = vpnInterface ?: run {
+                    withContext(Dispatchers.Main) { status = VpnStatus.ERROR }
+                    return@withContext
+                }
+                // Clear O_CLOEXEC so the fd survives exec() into the tun2socks subprocess
+                try {
+                    android.system.Os.fcntl(
+                        tunPfd.fileDescriptor,
+                        android.system.OsConstants.F_SETFD,
+                        0,
+                    )
+                } catch (_: Exception) {}
+                startTun2Socks(tunPfd.fd, socksPort)
                 startForeground(NOTIF_ID, buildNotification(server.remark))
                 isConnected = true
                 notifyWidgets()
@@ -187,6 +201,7 @@ class LiptonVpnService : VpnService() {
     }
 
     private fun cleanupVpn() {
+        stopTun2SocksProcess()
         stopXrayProcess()
         vpnInterface?.close()
         vpnInterface = null
@@ -194,12 +209,16 @@ class LiptonVpnService : VpnService() {
 
     private fun stopXrayProcess() {
         xrayProcess?.let { proc ->
-            try {
-                proc.destroy()
-                proc.waitFor()
-            } catch (_: Exception) {}
+            try { proc.destroy(); proc.waitFor() } catch (_: Exception) {}
         }
         xrayProcess = null
+    }
+
+    private fun stopTun2SocksProcess() {
+        tun2socksProcess?.let { proc ->
+            try { proc.destroy(); proc.waitFor() } catch (_: Exception) {}
+        }
+        tun2socksProcess = null
     }
 
     // ─── Xray helpers ─────────────────────────────────────────────────────────
@@ -211,7 +230,36 @@ class LiptonVpnService : VpnService() {
             f.setExecutable(true, true)
             return f.absolutePath
         }
-        throw Exception("Бинарный файл xray не найден. Добавьте libxray.so в app/libs/jniLibs/arm64-v8a/")
+        throw Exception("libxray.so не найден в $nativeDir")
+    }
+
+    private fun startTun2Socks(tunFd: Int, socksPort: Int) {
+        val nativeDir = applicationInfo.nativeLibraryDir
+        val bin = File(nativeDir, "libtun2socks.so")
+        if (!bin.exists()) {
+            Log.w(TAG, "libtun2socks.so не найден — трафик из TUN не будет перенаправлен в xray")
+            return
+        }
+        bin.setExecutable(true, true)
+        stopTun2SocksProcess()
+        // xjasonlyu/tun2socks: -device fd://N  -proxy socks5://addr:port
+        val pb = ProcessBuilder(
+            bin.absolutePath,
+            "-device", "fd://$tunFd",
+            "-proxy",  "socks5://127.0.0.1:$socksPort",
+            "-loglevel", "warning",
+        ).redirectErrorStream(true)
+        tun2socksProcess = pb.start()
+        Log.i(TAG, "tun2socks запущен на fd=$tunFd → socks5://127.0.0.1:$socksPort")
+        // capture tun2socks output into logListener
+        scope.launch(Dispatchers.IO) {
+            try {
+                tun2socksProcess?.inputStream?.bufferedReader()?.forEachLine { line ->
+                    Log.d(TAG, "[tun2socks] $line")
+                    logListener?.invoke("[tun2socks] $line")
+                }
+            } catch (_: Exception) {}
+        }
     }
 
     private fun ensureGeoFiles(): String {
@@ -324,6 +372,8 @@ class LiptonVpnService : VpnService() {
         isConnected = false
         notifyWidgets()
         scope.cancel()
+        try { tun2socksProcess?.destroy() } catch (_: Exception) {}
+        tun2socksProcess = null
         try { xrayProcess?.destroy() } catch (_: Exception) {}
         xrayProcess = null
         try { vpnInterface?.close() } catch (_: Exception) {}
