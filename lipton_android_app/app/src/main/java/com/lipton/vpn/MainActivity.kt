@@ -1,8 +1,10 @@
 package com.lipton.vpn
 
+import android.Manifest
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -35,9 +37,19 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // Android 13+ требует явного запроса разрешения на уведомления
+    private val notifPermLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { /* результат не требует обработки */ }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
         super.onCreate(savedInstanceState)
+
+        // Запрашиваем разрешение на уведомления (нужно для VPN foreground notification)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            notifPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
 
         viewModel.setPermissionLauncher(vpnPermissionLauncher)
         viewModel.bindService(this)
@@ -69,7 +81,9 @@ class MainActivity : ComponentActivity() {
     private fun handleDeepLink(intent: Intent?) {
         val uri: Uri = intent?.data ?: return
         if (uri.scheme != "liptonvpn") return
-        val url = "https://${uri.host}${uri.path}"
+        if (uri.host != "sub.popokole.online") return
+        // Восстанавливаем HTTPS URL с путём и query-параметрами
+        val url = uri.toString().replaceFirst("liptonvpn://", "https://")
         lifecycleScope.launch { viewModel.addSubscription(url) }
     }
 

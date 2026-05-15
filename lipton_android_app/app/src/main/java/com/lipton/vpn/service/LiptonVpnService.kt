@@ -140,9 +140,17 @@ class LiptonVpnService : VpnService() {
                     withContext(Dispatchers.Main) { status = VpnStatus.ERROR }
                     return@withContext
                 }
-                // dup() creates a new fd without O_CLOEXEC so it survives exec() into tun2socks
-                // detachFd() отдаёт "голый" int fd без O_CLOEXEC и без закрытия при GC
-                val tunFd = try { tunPfd.dup().detachFd() } catch (_: Exception) { tunPfd.fd }
+                // dup() creates a new fd without O_CLOEXEC so it survives exec() into tun2socks.
+                // detachFd() transfers ownership: the PFD won't close the fd on GC.
+                // NEVER fallback to tunPfd.fd — that raw int is owned by the PFD and
+                // will be closed by GC, giving tun2socks a dangling descriptor.
+                val tunFd = try {
+                    tunPfd.dup().detachFd()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Не удалось дублировать TUN fd", e)
+                    withContext(Dispatchers.Main) { status = VpnStatus.ERROR }
+                    return@withContext
+                }
                 startTun2Socks(tunFd, socksPort)
                 startForeground(NOTIF_ID, buildNotification(server.remark))
                 isConnected = true
@@ -198,6 +206,8 @@ class LiptonVpnService : VpnService() {
     private fun cleanupVpn() {
         stopTun2SocksProcess()
         stopXrayProcess()
+        try { xrayLogReader?.close() } catch (_: Exception) {}
+        xrayLogReader = null
         vpnInterface?.close()
         vpnInterface = null
     }
@@ -255,21 +265,38 @@ class LiptonVpnService : VpnService() {
                 }
             } catch (_: Exception) {}
         }
-        // Проверяем через 1.5 сек, что процесс жив
+        // Проверяем через 1.5 сек, что процесс стартовал корректно
         scope.launch(Dispatchers.IO) {
             try {
                 Thread.sleep(1500)
                 val alive = tun2socksProcess?.isAlive ?: false
-                if (!alive) {
+                if (!alive && status == VpnStatus.CONNECTED) {
                     val exitCode = runCatching { tun2socksProcess?.exitValue() }.getOrDefault(-1)
                     Log.e(TAG, "tun2socks завершился сразу после запуска, exitCode=$exitCode")
                     logListener?.invoke("[tun2socks] ОШИБКА: процесс завершился (code=$exitCode, fd=$tunFd)")
-                    withContext(Dispatchers.Main) {
-                        if (status == VpnStatus.CONNECTED) status = VpnStatus.ERROR
-                    }
-                } else {
-                    Log.i(TAG, "tun2socks жив, трафик должен идти через VPN")
-                    logListener?.invoke("[tun2socks] процесс запущен, fd=$tunFd -> socks5:$socksPort")
+                    isConnected = false
+                    cleanupVpn()
+                    stopForeground(STOP_FOREGROUND_REMOVE)
+                    withContext(Dispatchers.Main) { status = VpnStatus.ERROR }
+                } else if (alive) {
+                    Log.i(TAG, "tun2socks жив, fd=$tunFd -> socks5:127.0.0.1:$socksPort")
+                    logListener?.invoke("[tun2socks] OK: fd=$tunFd -> socks5:127.0.0.1:$socksPort")
+                }
+            } catch (_: Exception) {}
+        }
+        // Мониторим завершение tun2socks в процессе работы
+        scope.launch(Dispatchers.IO) {
+            try {
+                tun2socksProcess?.waitFor()
+                if (status == VpnStatus.CONNECTED) {
+                    Log.e(TAG, "tun2socks завершился во время работы VPN")
+                    logListener?.invoke("[tun2socks] процесс завершился, VPN остановлен")
+                    isConnected = false
+                    notifyWidgets()
+                    withContext(Dispatchers.Main) { status = VpnStatus.DISCONNECTED }
+                    cleanupVpn()
+                    stopForeground(STOP_FOREGROUND_REMOVE)
+                    stopSelf()
                 }
             } catch (_: Exception) {}
         }

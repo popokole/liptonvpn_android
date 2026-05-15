@@ -158,7 +158,7 @@ object XrayConfigGenerator {
     )
 
     private fun streamSettings(s: Server): Map<String, Any> {
-        val ss = mutableMapOf<String, Any>("network" to (s.network))
+        val ss = mutableMapOf<String, Any>("network" to s.network.ifBlank { "tcp" })
 
         when (s.security) {
             "reality" -> {
