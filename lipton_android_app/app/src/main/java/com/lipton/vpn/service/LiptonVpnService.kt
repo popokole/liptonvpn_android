@@ -104,6 +104,10 @@ class LiptonVpnService : VpnService() {
 
         withContext(Dispatchers.IO) {
             try {
+                // Диагностическая информация в логах
+                logListener?.invoke("=== LiptonVPN ${android.os.Build.VERSION.SDK_INT} / ${android.os.Build.SUPPORTED_ABIS.firstOrNull()} ===")
+                logListener?.invoke("Сервер: ${server.address}:${server.port} [${server.protocol}/${server.network}/${server.security}]")
+
                 val bypassRu = settings.getBypassRu()
                 val bypassDomains = settings.getBypassDomains()
                 val socksPort = settings.getSocksPort()

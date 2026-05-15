@@ -1,5 +1,10 @@
 package com.lipton.vpn.ui.components
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -8,11 +13,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lipton.vpn.ui.theme.*
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun LogsScreen(
@@ -22,6 +30,9 @@ fun LogsScreen(
 ) {
     val lc          = LocalLiptonColors.current
     val scrollState = rememberScrollState()
+    val context     = LocalContext.current
+    val scope       = rememberCoroutineScope()
+    var copied      by remember { mutableStateOf(false) }
 
     // Auto-scroll to bottom when new lines arrive
     LaunchedEffect(logLines.size) {
@@ -60,21 +71,59 @@ fun LogsScreen(
             }
 
             if (logLines.isNotEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(RedSoft)
-                        .border(1.dp, Red.copy(alpha = 0.22f), RoundedCornerShape(20.dp))
-                        .clickable(onClick = onClear)
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
-                ) {
-                    Text("Очистить", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Red)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Кнопка копирования
+                    AnimatedContent(
+                        targetState = copied,
+                        transitionSpec = { fadeIn(tween(150)).togetherWith(fadeOut(tween(100))) },
+                        label = "copy_btn",
+                    ) { isCopied ->
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(if (isCopied) GreenSoft else lc.cardBg)
+                                .border(
+                                    1.dp,
+                                    if (isCopied) Green.copy(alpha = 0.35f) else lc.cardBorder,
+                                    RoundedCornerShape(20.dp),
+                                )
+                                .clickable(enabled = !isCopied) {
+                                    val text = logLines.joinToString("\n")
+                                    val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                    cm.setPrimaryClip(ClipData.newPlainText("LiptonVPN Logs", text))
+                                    scope.launch {
+                                        copied = true
+                                        delay(2000)
+                                        copied = false
+                                    }
+                                }
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                        ) {
+                            Text(
+                                if (isCopied) "✓ Скопировано" else "Копировать",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (isCopied) Green else lc.textSecondary,
+                            )
+                        }
+                    }
+                    // Кнопка очистки
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(RedSoft)
+                            .border(1.dp, Red.copy(alpha = 0.22f), RoundedCornerShape(20.dp))
+                            .clickable(onClick = onClear)
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                    ) {
+                        Text("Очистить", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Red)
+                    }
                 }
             }
         }
 
         Text(
-            text = "Вывод xray-core в реальном времени",
+            text = "Вывод xray-core и tun2socks в реальном времени",
             fontSize = 11.5.sp,
             color = lc.textTertiary,
             lineHeight = 17.sp,
