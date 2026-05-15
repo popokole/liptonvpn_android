@@ -117,20 +117,21 @@ class SubscriptionManager(private val settings: SettingsManager) {
 
     suspend fun getTrialSubscription(hwid: String, durationMinutes: Int): Subscription =
         withContext(Dispatchers.IO) {
-            val trialApiUrl = "https://sub.popokole.online/trial?hwid=$hwid&duration=${durationMinutes}m"
-            val req = Request.Builder()
-                .url(trialApiUrl)
-                .header("User-Agent", "LiptonVPN/$APP_VERSION (Android)")
-                .header("X-App-Name", "LiptonVPN")
-                .header("X-Hwid", hwid)
-                .build()
-            val resp = client.newCall(req).execute()
-            val bodyStr = resp.body?.string()?.trim() ?: ""
-            if (!resp.isSuccessful) {
-                throw Exception("Ошибка сервера при получении пробного доступа (${resp.code})")
+            // Try to get a personalised URL from the trial API; fall back to hardcoded TRIAL_URL on any error
+            val subUrl = try {
+                val trialApiUrl = "https://sub.popokole.online/trial?hwid=$hwid&duration=${durationMinutes}m"
+                val req = Request.Builder()
+                    .url(trialApiUrl)
+                    .header("User-Agent", "LiptonVPN/$APP_VERSION (Android)")
+                    .header("X-App-Name", "LiptonVPN")
+                    .header("X-Hwid", hwid)
+                    .build()
+                val resp = client.newCall(req).execute()
+                val body = resp.body?.string()?.trim() ?: ""
+                if (resp.isSuccessful && body.startsWith("http")) body else TRIAL_URL
+            } catch (_: Exception) {
+                TRIAL_URL
             }
-            if (bodyStr.isBlank()) throw Exception("Пробный доступ временно недоступен")
-            val subUrl = if (bodyStr.startsWith("http")) bodyStr else TRIAL_URL
             add(subUrl, isTrial = true)
         }
 
