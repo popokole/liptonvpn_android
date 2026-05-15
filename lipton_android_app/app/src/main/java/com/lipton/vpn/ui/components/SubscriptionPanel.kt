@@ -37,7 +37,6 @@ import java.util.*
 fun SubscriptionPanel(
     subscriptions: List<Subscription>,
     trialUsed:     Boolean,
-    isFirstLaunch: Boolean,
     onAdd:         suspend (String) -> Unit,
     onRemove:      suspend (String) -> Unit,
     onRefresh:     suspend (String) -> Unit,
@@ -73,8 +72,8 @@ fun SubscriptionPanel(
             )
         }
 
-        // First-launch welcome card (shown only once, only if no subs yet)
-        if (isFirstLaunch && subscriptions.isEmpty() && !trialUsed) {
+        // Welcome card — показывается пока нет подписок и пробный не активирован
+        if (subscriptions.isEmpty() && !trialUsed) {
             FirstLaunchCard(onGetTrial = onGetTrial, onBuyClick = onBuyClick, scope = scope)
         }
 
@@ -89,8 +88,8 @@ fun SubscriptionPanel(
             }
         }
 
-        // Add subscription row + buy buttons (hidden when FirstLaunchCard is visible or main sub exists)
-        val showFirstLaunchCard = isFirstLaunch && subscriptions.isEmpty() && !trialUsed
+        // Add subscription row + buy buttons (hidden when welcome card is visible or main sub exists)
+        val showFirstLaunchCard = subscriptions.isEmpty() && !trialUsed
         AnimatedContent(
             targetState = showAddForm,
             transitionSpec = {

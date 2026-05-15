@@ -170,7 +170,6 @@ fun MainScreen(
                     SubscriptionPanel(
                         subscriptions       = state.subscriptions,
                         trialUsed           = state.trialUsed,
-                        isFirstLaunch       = state.isFirstLaunch,
                         onAdd               = { url -> viewModel.addSubscription(url) },
                         onRemove            = { id -> viewModel.removeSubscription(id) },
                         onRefresh           = { id -> viewModel.refreshSubscription(id) },
