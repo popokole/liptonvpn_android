@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/wsrv_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:background="@drawable/widget_bg"
+    android:padding="12dp">
+
+    <TextView
+        android:id="@+id/wsrv_title"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="LIPTON VPN"
+        android:textSize="8sp"
+        android:textStyle="bold"
+        android:letterSpacing="0.15"
+        android:textColor="#6CF0C3" />
+
+    <TextView
+        android:id="@+id/wsrv_server"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="5dp"
+        android:text="Нет сервера"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        android:textColor="#EDFFF2"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:gravity="center" />
+
+    <TextView
+        android:id="@+id/wsrv_status"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:text="Отключено"
+        android:textSize="10sp"
+        android:textColor="#8CB4F0C3" />
+
+    <LinearLayout
+        android:id="@+id/wsrv_btn"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:orientation="horizontal"
+        android:background="@drawable/widget_button_bg"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingTop="7dp"
+        android:paddingBottom="7dp"
+        android:gravity="center">
+
+        <TextView
+            android:id="@+id/wsrv_btn_label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="▶  Следующий"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:textColor="#000000" />
+
+    </LinearLayout>
+
+</LinearLayout>

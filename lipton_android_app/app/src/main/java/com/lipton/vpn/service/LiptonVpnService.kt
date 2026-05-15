@@ -422,8 +422,10 @@ class LiptonVpnService : VpnService() {
 
     private fun notifyWidgets() {
         val manager = AppWidgetManager.getInstance(this)
-        val ids = manager.getAppWidgetIds(ComponentName(this, LiptonWidget::class.java))
-        ids.forEach { LiptonWidget.updateWidget(this, manager, it) }
+        manager.getAppWidgetIds(ComponentName(this, LiptonWidget::class.java))
+            .forEach { LiptonWidget.updateWidget(this, manager, it) }
+        com.lipton.vpn.widget.LiptonStatusWidget.refreshAll(this)
+        com.lipton.vpn.widget.LiptonServerWidget.refreshAll(this)
     }
 
     override fun onDestroy() {

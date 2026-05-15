@@ -140,10 +140,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private fun watchTrialExpiry() {
         viewModelScope.launch {
             while (true) {
-                delay(30_000)
                 val now = System.currentTimeMillis() / 1000L
-                val subs = settings.getSubscriptions()
-                val expired = subs.filter { it.isTrial && it.userInfo.expire in 1 until now }
+                val expired = state.value.subscriptions.filter { sub ->
+                    sub.isTrial && sub.userInfo.expire > 0L && sub.userInfo.expire < now
+                }
                 if (expired.isNotEmpty()) {
                     expired.forEach { sub ->
                         subManager.remove(sub.id)
@@ -158,6 +158,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         errorMessage = "Пробный доступ истёк. Оформите подписку для продолжения."
                     ) }
                 }
+                delay(30_000)
             }
         }
     }

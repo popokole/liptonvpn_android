@@ -7,4 +7,6 @@
     <string name="notification_channel_desc">Статус VPN соединения</string>
     <string name="disconnect">Отключить</string>
     <string name="widget_description">Управление VPN одним нажатием</string>
+    <string name="widget_status_description">Статус подключения VPN</string>
+    <string name="widget_server_description">Переключение серверов VPN</string>
 </resources>

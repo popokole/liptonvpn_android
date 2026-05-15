@@ -128,6 +128,37 @@ fun MainScreen(
             Column(modifier = Modifier.fillMaxSize()) {
                 TopBar(onSettings = { showSettings = true })
 
+                // Баннер обновления — прямо под шапкой, над кнопкой подключения
+                AnimatedVisibility(
+                    visible = state.updateInfo != null,
+                    enter = fadeIn(tween(300)) + expandVertically(tween(300)),
+                    exit  = fadeOut(tween(200)) + shrinkVertically(tween(200)),
+                ) {
+                    state.updateInfo?.let { _ ->
+                        Column {
+                            UpdateBanner(
+                                version           = state.updateInfo!!.versionName,
+                                downloadProgress  = state.downloadProgress,
+                                downloadedApkPath = state.downloadedApkPath,
+                                onDownload        = { viewModel.downloadUpdate() },
+                                onInstall         = { viewModel.installUpdate(activity) },
+                                onDismiss         = { viewModel.dismissUpdate() },
+                                modifier          = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(1.dp)
+                                    .background(
+                                        Brush.horizontalGradient(
+                                            listOf(Color.Transparent, Green.copy(alpha = 0.14f), Color.Transparent)
+                                        )
+                                    )
+                            )
+                        }
+                    }
+                }
+
                 Column(
                     modifier = Modifier
                         .weight(1f)
@@ -180,17 +211,6 @@ fun MainScreen(
                             )
                         },
                     )
-
-                    state.updateInfo?.let { _ ->
-                        UpdateBanner(
-                            version          = state.updateInfo!!.versionName,
-                            downloadProgress = state.downloadProgress,
-                            downloadedApkPath = state.downloadedApkPath,
-                            onDownload       = { viewModel.downloadUpdate() },
-                            onInstall        = { viewModel.installUpdate(activity) },
-                            onDismiss        = { viewModel.dismissUpdate() },
-                        )
-                    }
 
                 }
 
@@ -437,10 +457,11 @@ private fun UpdateBanner(
     onDownload:        () -> Unit,
     onInstall:         () -> Unit,
     onDismiss:         () -> Unit,
+    modifier:          Modifier = Modifier,
 ) {
     val lc = LocalLiptonColors.current
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(lc.bgCard)
