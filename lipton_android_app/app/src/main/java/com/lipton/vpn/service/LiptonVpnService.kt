@@ -140,15 +140,9 @@ class LiptonVpnService : VpnService() {
                     withContext(Dispatchers.Main) { status = VpnStatus.ERROR }
                     return@withContext
                 }
-                // Clear O_CLOEXEC so the fd survives exec() into the tun2socks subprocess
-                try {
-                    android.system.Os.fcntl(
-                        tunPfd.fileDescriptor,
-                        android.system.OsConstants.F_SETFD,
-                        0,
-                    )
-                } catch (_: Exception) {}
-                startTun2Socks(tunPfd.fd, socksPort)
+                // dup() creates a new fd without O_CLOEXEC so it survives exec() into tun2socks
+                val tunFd = try { tunPfd.dup().fd } catch (_: Exception) { tunPfd.fd }
+                startTun2Socks(tunFd, socksPort)
                 startForeground(NOTIF_ID, buildNotification(server.remark))
                 isConnected = true
                 notifyWidgets()
