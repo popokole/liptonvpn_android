@@ -32,6 +32,7 @@ fun SettingsPanel(
     bypassDomains:       List<String>,
     themeMode:           AppTheme,
     autoConnectOnLaunch: Boolean,
+    autostart:           Boolean,
     logLines:            List<String>,
     trialUsed:           Boolean,
     onBypassRuChange:    (Boolean) -> Unit,
@@ -39,6 +40,7 @@ fun SettingsPanel(
     onRemoveDomain:      (String) -> Unit,
     onThemeChange:       (AppTheme) -> Unit,
     onAutoConnectChange: (Boolean) -> Unit,
+    onAutostartChange:   (Boolean) -> Unit,
     onClearLogs:         () -> Unit,
     onGetTrial:          suspend (Int) -> Unit,
     onBuyClick:          () -> Unit,
@@ -120,33 +122,51 @@ fun SettingsPanel(
                     ThemeSelector(current = themeMode, onSelect = onThemeChange)
                 }
 
-                // ── СИСТЕМА ──────────────────────────────────────────────────
+                // ── ПОДКЛЮЧЕНИЕ ──────────────────────────────────────────────
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    SectionLabel("СИСТЕМА")
+                    SectionLabel("ПОДКЛЮЧЕНИЕ")
 
                     SettingsToggleRow(
-                        label    = "Автоподключение",
-                        subtitle = "Подключаться при открытии приложения",
-                        checked  = autoConnectOnLaunch,
-                        onChange = onAutoConnectChange,
+                        label    = "Автозапуск при загрузке",
+                        subtitle = "VPN включается автоматически при старте телефона",
+                        checked  = autostart,
+                        onChange = onAutostartChange,
                     )
 
                     SettingsToggleRow(
+                        label    = "Подключаться при открытии",
+                        subtitle = "Автоматически включать VPN при запуске приложения",
+                        checked  = autoConnectOnLaunch,
+                        onChange = onAutoConnectChange,
+                    )
+                }
+
+                // ── ТРАФИК ───────────────────────────────────────────────────
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SectionLabel("ТРАФИК")
+
+                    SettingsToggleRow(
                         label    = "Обход РУ трафика",
-                        subtitle = "Российские сайты работают без VPN",
+                        subtitle = "Банки, Госуслуги, ВКонтакте — без VPN",
                         checked  = bypassRu,
                         onChange = onBypassRuChange,
                     )
 
                     SettingsNavRow(
-                        label    = "Свои домены для обхода",
-                        subtitle = "Добавить домены в исключения VPN",
+                        label    = "Исключения VPN",
+                        subtitle = "Сайты, которые открываются напрямую",
+                        badge    = if (bypassDomains.isNotEmpty()) "${bypassDomains.size}" else null,
                         onClick  = { showBypassDomains = true },
                     )
+                }
+
+                // ── ДОПОЛНИТЕЛЬНО ─────────────────────────────────────────────
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SectionLabel("ДОПОЛНИТЕЛЬНО")
 
                     SettingsNavRow(
                         label    = "Логи подключения",
-                        subtitle = "Просмотр вывода xray-core",
+                        subtitle = "Вывод xray-core для диагностики",
                         badge    = if (logLines.isNotEmpty()) "${logLines.size}" else null,
                         onClick  = { showLogs = true },
                     )

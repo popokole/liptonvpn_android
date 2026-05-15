@@ -48,6 +48,7 @@ data class UiState(
     val updateInfo:          UpdateInfo?        = null,
     val downloadProgress:    Int?               = null,
     val downloadedApkPath:   String?            = null,
+    val errorMessage:        String?            = null,
 )
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
@@ -70,7 +71,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val binder = service as? LiptonVpnService.LocalBinder ?: return
             vpnService = binder.getService().also { svc ->
                 svc.statusListener = { newStatus ->
-                    _state.update { it.copy(status = newStatus) }
+                    _state.update {
+                        it.copy(
+                            status = newStatus,
+                            errorMessage = if (newStatus == LiptonVpnService.VpnStatus.ERROR)
+                                "Не удалось подключиться. Проверьте сервер или интернет."
+                            else it.errorMessage,
+                        )
+                    }
                 }
                 svc.logListener = { line ->
                     pendingLogLines.add(line)
@@ -124,6 +132,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun dismissFirstLaunch() = _state.update { it.copy(isFirstLaunch = false) }
+    fun clearError() = _state.update { it.copy(errorMessage = null) }
 
     fun dismissUpdate() = _state.update { it.copy(updateInfo = null, downloadProgress = null, downloadedApkPath = null) }
 

@@ -141,7 +141,8 @@ class LiptonVpnService : VpnService() {
                     return@withContext
                 }
                 // dup() creates a new fd without O_CLOEXEC so it survives exec() into tun2socks
-                val tunFd = try { tunPfd.dup().fd } catch (_: Exception) { tunPfd.fd }
+                // detachFd() отдаёт "голый" int fd без O_CLOEXEC и без закрытия при GC
+                val tunFd = try { tunPfd.dup().detachFd() } catch (_: Exception) { tunPfd.fd }
                 startTun2Socks(tunFd, socksPort)
                 startForeground(NOTIF_ID, buildNotification(server.remark))
                 isConnected = true

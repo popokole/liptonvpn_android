@@ -3,6 +3,7 @@ package com.lipton.vpn.widget
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.net.VpnService
@@ -25,18 +26,32 @@ class LiptonWidget : AppWidgetProvider() {
             val connected = LiptonVpnService.isConnected
             val views = RemoteViews(context.packageName, R.layout.widget_lipton)
 
-            views.setTextViewText(R.id.widget_status, if (connected) "Подключено" else "Отключено")
-            views.setTextViewText(R.id.widget_btn_label, if (connected) "Отключить" else "Подключить")
+            views.setTextViewText(R.id.widget_status,
+                if (connected) "Подключено" else "Отключено")
+            views.setTextViewText(R.id.widget_btn_label,
+                if (connected) "Отключить" else "Подключить")
             views.setTextColor(R.id.widget_status,
                 if (connected) 0xFF34D058.toInt() else 0xFFEDFFF2.toInt())
 
+            // Кнопка — toggle VPN
             val toggleIntent = PendingIntent.getBroadcast(
                 context,
                 widgetId,
                 Intent(context, LiptonWidget::class.java).setAction(ACTION_TOGGLE),
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
-            views.setOnClickPendingIntent(R.id.widget_root, toggleIntent)
+            views.setOnClickPendingIntent(R.id.widget_btn, toggleIntent)
+
+            // Заголовок / статус — открыть приложение
+            val openIntent = PendingIntent.getActivity(
+                context,
+                widgetId + 10000,
+                Intent(context, MainActivity::class.java).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                },
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+            views.setOnClickPendingIntent(R.id.widget_root, openIntent)
 
             manager.updateAppWidget(widgetId, views)
         }
@@ -64,9 +79,10 @@ class LiptonWidget : AppWidgetProvider() {
 
         val permIntent = VpnService.prepare(context)
         if (permIntent != null) {
+            // Нужно разрешение — открываем приложение
             context.startActivity(
                 Intent(context, MainActivity::class.java).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
                 }
             )
             return
@@ -89,9 +105,7 @@ class LiptonWidget : AppWidgetProvider() {
 
     private fun refreshAllWidgets(context: Context) {
         val manager = AppWidgetManager.getInstance(context)
-        val ids = manager.getAppWidgetIds(
-            android.content.ComponentName(context, LiptonWidget::class.java)
-        )
+        val ids = manager.getAppWidgetIds(ComponentName(context, LiptonWidget::class.java))
         ids.forEach { updateWidget(context, manager, it) }
     }
 }

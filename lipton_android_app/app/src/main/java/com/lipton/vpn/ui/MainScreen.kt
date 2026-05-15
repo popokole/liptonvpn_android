@@ -45,6 +45,14 @@ fun MainScreen(
     val prevStatus   = remember { mutableStateOf(state.status) }
     val scope        = rememberCoroutineScope()
     val planesJob    = remember { mutableStateOf<Job?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    // Показываем Snackbar при ошибке подключения
+    LaunchedEffect(state.errorMessage) {
+        val msg = state.errorMessage ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(message = msg, withDismissAction = true)
+        viewModel.clearError()
+    }
 
     // Auto-connect on launch
     LaunchedEffect(state.loading) {
@@ -193,12 +201,21 @@ fun MainScreen(
 
             PlanesOverlay(mode = planesMode)
 
+            // Snackbar для ошибок
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
+                SnackbarHost(
+                    hostState = snackbarHostState,
+                    modifier  = Modifier.padding(bottom = 16.dp),
+                )
+            }
+
             if (showSettings) {
                 SettingsPanel(
                     bypassRu             = state.bypassRu,
                     bypassDomains        = state.bypassDomains,
                     themeMode            = state.themeMode,
                     autoConnectOnLaunch  = state.autoConnectOnLaunch,
+                    autostart            = state.autostart,
                     logLines             = state.logLines,
                     trialUsed            = state.trialUsed,
                     onBypassRuChange     = { viewModel.setBypassRu(it) },
@@ -206,6 +223,7 @@ fun MainScreen(
                     onRemoveDomain       = { viewModel.removeBypassDomain(it) },
                     onThemeChange        = { viewModel.setThemeMode(it) },
                     onAutoConnectChange  = { viewModel.setAutoConnectOnLaunch(it) },
+                    onAutostartChange    = { viewModel.setAutostart(it) },
                     onClearLogs          = { viewModel.clearLogs() },
                     onGetTrial           = { mins -> viewModel.getTrialSubscription(mins) },
                     onBuyClick           = {
@@ -289,7 +307,7 @@ private fun ConnectSection(state: UiState, onConnect: () -> Unit) {
         VpnStatus.CONNECTING    -> "Подключение..."
         VpnStatus.DISCONNECTING -> "Отключение..."
         VpnStatus.DISCONNECTED  -> "Отключено"
-        VpnStatus.ERROR         -> "Ошибка подключения"
+        VpnStatus.ERROR         -> "Не удалось подключиться"
     }
 
     val statusColor by animateColorAsState(
@@ -356,6 +374,31 @@ private fun ConnectSection(state: UiState, onConnect: () -> Unit) {
                 color = lc.textTertiary,
                 textAlign = TextAlign.Center,
             )
+        }
+
+        // Кнопка "Повторить" при ошибке подключения
+        AnimatedVisibility(
+            visible = state.status == VpnStatus.ERROR,
+            enter   = fadeIn(tween(300)) + slideInVertically { it / 2 },
+            exit    = fadeOut(tween(200)),
+        ) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Red.copy(alpha = 0.12f))
+                    .border(1.dp, Red.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
+                    .clickable(onClick = onConnect)
+                    .padding(horizontal = 20.dp, vertical = 8.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    "↻  Повторить",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Red,
+                )
+            }
         }
     }
 }
