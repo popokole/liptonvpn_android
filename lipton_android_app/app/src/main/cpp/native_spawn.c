@@ -4,18 +4,19 @@
 #include <signal.h>
 #include <sys/wait.h>
 #include <stdlib.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <stdio.h>
 #include <android/log.h>
 
 #define TAG "LiptonNative"
 
 /*
- * Spawns a child process without closing inherited file descriptors.
- * Android's ProcessBuilder closes all fd > 2 before exec(), which breaks
- * TUN fd inheritance to tun2socks. This JNI function uses fork()+execv()
- * directly, preserving all open descriptors (O_CLOEXEC-free ones survive exec).
+ * Android's Os.dup() on API 26+ uses dup3(..., O_CLOEXEC), so the dup'd TUN fd
+ * gets O_CLOEXEC set and is closed by the kernel on exec().
  *
- * Returns int[2] = { pid, readPipeFd } on success, null on failure.
- * stdout+stderr of the child are merged into readPipeFd.
+ * Fix: after fork(), scan argv for "fd://N", check and clear O_CLOEXEC on that
+ * fd with fcntl(F_SETFD, 0) before execv(). The fd then survives exec().
  */
 JNIEXPORT jintArray JNICALL
 Java_com_lipton_vpn_service_LiptonVpnService_nativeSpawn(
@@ -61,7 +62,37 @@ Java_com_lipton_vpn_service_LiptonVpnService_nativeSpawn(
         dup2(pipefd[1], STDERR_FILENO);
         if (pipefd[1] > STDERR_FILENO) close(pipefd[1]);
 
-        /* exec without closing extra fds — TUN fd survives */
+        /*
+         * Scan args for "fd://N" and clear O_CLOEXEC on the TUN fd.
+         * Android's Os.dup() uses dup3(..., O_CLOEXEC) internally, so the fd
+         * arrives here with FD_CLOEXEC set and would be closed by exec().
+         * fcntl(F_SETFD, flags & ~FD_CLOEXEC) makes it survive exec().
+         */
+        for (int i = 0; argv[i] != NULL; i++) {
+            if (strncmp(argv[i], "fd://", 5) == 0) {
+                int tun_fd = atoi(argv[i] + 5);
+                if (tun_fd >= 0) {
+                    int flags = fcntl(tun_fd, F_GETFD, 0);
+                    char buf[160];
+                    int n;
+                    if (flags < 0) {
+                        n = snprintf(buf, sizeof(buf),
+                            "[native_spawn] ERROR: fd=%d invalid before exec (errno=%d)\n",
+                            tun_fd, errno);
+                        write(STDOUT_FILENO, buf, n);
+                    } else {
+                        /* Clear FD_CLOEXEC so the fd survives execv() */
+                        fcntl(tun_fd, F_SETFD, flags & ~FD_CLOEXEC);
+                        n = snprintf(buf, sizeof(buf),
+                            "[native_spawn] fd=%d CLOEXEC was %s, cleared\n",
+                            tun_fd, (flags & FD_CLOEXEC) ? "SET" : "NOT SET");
+                        write(STDOUT_FILENO, buf, n);
+                    }
+                }
+                break;
+            }
+        }
+
         execv(argv[0], argv);
         _exit(127);
     }
