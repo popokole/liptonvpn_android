@@ -35,7 +35,13 @@ class LiptonVpnService : VpnService() {
 
         @Volatile var isConnected: Boolean = false
             private set
+
+        init { System.loadLibrary("lipton_native") }
     }
+
+    // fork()+execv() without closing extra fds; returns [pid, readPipeFd] or null
+    private external fun nativeSpawn(args: Array<String>): IntArray?
+    private external fun nativeKill(pid: Int)
 
     inner class LocalBinder : Binder() {
         fun getService(): LiptonVpnService = this@LiptonVpnService
@@ -44,10 +50,11 @@ class LiptonVpnService : VpnService() {
     private val binder = LocalBinder()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    private var vpnInterface:      ParcelFileDescriptor? = null
-    private var xrayProcess:       Process?              = null
-    private var tun2socksProcess:  Process?              = null
-    private var currentServer:     Server?               = null
+    private var vpnInterface:     ParcelFileDescriptor? = null
+    private var xrayProcess:      Process?              = null
+    private var tun2socksPid:     Int                   = 0
+    private var tun2socksPipe:    ParcelFileDescriptor? = null
+    private var currentServer:    Server?               = null
 
     var statusListener: ((VpnStatus) -> Unit)? = null
     var logListener:    ((String)    -> Unit)? = null
@@ -224,10 +231,13 @@ class LiptonVpnService : VpnService() {
     }
 
     private fun stopTun2SocksProcess() {
-        tun2socksProcess?.let { proc ->
-            try { proc.destroy(); proc.waitFor() } catch (_: Exception) {}
+        val pid = tun2socksPid
+        if (pid > 0) {
+            try { nativeKill(pid) } catch (_: Exception) {}
+            tun2socksPid = 0
         }
-        tun2socksProcess = null
+        try { tun2socksPipe?.close() } catch (_: Exception) {}
+        tun2socksPipe = null
     }
 
     // ─── Xray helpers ─────────────────────────────────────────────────────────
@@ -246,54 +256,50 @@ class LiptonVpnService : VpnService() {
         val nativeDir = applicationInfo.nativeLibraryDir
         val bin = File(nativeDir, "libtun2socks.so")
         if (!bin.exists()) {
-            Log.w(TAG, "libtun2socks.so не найден — трафик из TUN не будет перенаправлен в xray")
+            Log.w(TAG, "libtun2socks.so не найден")
             logListener?.invoke("[tun2socks] ОШИБКА: libtun2socks.so не найден в $nativeDir")
             return
         }
         bin.setExecutable(true, true)
         stopTun2SocksProcess()
+
         Log.i(TAG, "tun2socks: запуск с fd=$tunFd, proxy=socks5://127.0.0.1:$socksPort")
-        val pb = ProcessBuilder(
+
+        // ProcessBuilder закрывает все fd > 2 перед exec() — нативный спаунер этого не делает,
+        // поэтому TUN fd корректно наследуется tun2socks.
+        val result = nativeSpawn(arrayOf(
             bin.absolutePath,
             "-device", "fd://$tunFd",
             "-proxy",  "socks5://127.0.0.1:$socksPort",
             "-loglevel", "info",
-        ).redirectErrorStream(true)
-        tun2socksProcess = pb.start()
-        // Читаем вывод tun2socks
-        scope.launch(Dispatchers.IO) {
-            try {
-                tun2socksProcess?.inputStream?.bufferedReader()?.forEachLine { line ->
-                    Log.d(TAG, "[tun2socks] $line")
-                    logListener?.invoke("[tun2socks] $line")
-                }
-            } catch (_: Exception) {}
+        ))
+
+        if (result == null || result[0] <= 0) {
+            Log.e(TAG, "tun2socks: nativeSpawn вернул null или pid<=0")
+            logListener?.invoke("[tun2socks] ОШИБКА: не удалось запустить процесс")
+            return
         }
-        // Проверяем через 1.5 сек, что процесс стартовал корректно
+
+        tun2socksPid  = result[0]
+        tun2socksPipe = ParcelFileDescriptor.adoptFd(result[1])
+
+        logListener?.invoke("[tun2socks] запущен: pid=$tun2socksPid, fd=$tunFd -> socks5:127.0.0.1:$socksPort")
+
+        // Читаем вывод и мониторим завершение через pipe (EOF = процесс умер)
         scope.launch(Dispatchers.IO) {
             try {
-                Thread.sleep(1500)
-                val alive = tun2socksProcess?.isAlive ?: false
-                if (!alive && status == VpnStatus.CONNECTED) {
-                    val exitCode = runCatching { tun2socksProcess?.exitValue() }.getOrDefault(-1)
-                    Log.e(TAG, "tun2socks завершился сразу после запуска, exitCode=$exitCode")
-                    logListener?.invoke("[tun2socks] ОШИБКА: процесс завершился (code=$exitCode, fd=$tunFd)")
-                    isConnected = false
-                    cleanupVpn()
-                    stopForeground(STOP_FOREGROUND_REMOVE)
-                    withContext(Dispatchers.Main) { status = VpnStatus.ERROR }
-                } else if (alive) {
-                    Log.i(TAG, "tun2socks жив, fd=$tunFd -> socks5:127.0.0.1:$socksPort")
-                    logListener?.invoke("[tun2socks] OK: fd=$tunFd -> socks5:127.0.0.1:$socksPort")
+                val pipe = tun2socksPipe ?: return@launch
+                java.io.FileInputStream(pipe.fileDescriptor).bufferedReader().use { reader ->
+                    var line: String?
+                    while (reader.readLine().also { line = it } != null) {
+                        val l = line!!
+                        Log.d(TAG, "[tun2socks] $l")
+                        logListener?.invoke("[tun2socks] $l")
+                    }
                 }
-            } catch (_: Exception) {}
-        }
-        // Мониторим завершение tun2socks в процессе работы
-        scope.launch(Dispatchers.IO) {
-            try {
-                tun2socksProcess?.waitFor()
-                if (status == VpnStatus.CONNECTED) {
-                    Log.e(TAG, "tun2socks завершился во время работы VPN")
+                // EOF — процесс завершился
+                if (status != VpnStatus.DISCONNECTING && status != VpnStatus.DISCONNECTED) {
+                    Log.e(TAG, "tun2socks завершился неожиданно")
                     logListener?.invoke("[tun2socks] процесс завершился, VPN остановлен")
                     isConnected = false
                     notifyWidgets()
@@ -416,8 +422,11 @@ class LiptonVpnService : VpnService() {
         isConnected = false
         notifyWidgets()
         scope.cancel()
-        try { tun2socksProcess?.destroy() } catch (_: Exception) {}
-        tun2socksProcess = null
+        val pid = tun2socksPid
+        if (pid > 0) try { nativeKill(pid) } catch (_: Exception) {}
+        tun2socksPid = 0
+        try { tun2socksPipe?.close() } catch (_: Exception) {}
+        tun2socksPipe = null
         try { xrayProcess?.destroy() } catch (_: Exception) {}
         xrayProcess = null
         try { vpnInterface?.close() } catch (_: Exception) {}
