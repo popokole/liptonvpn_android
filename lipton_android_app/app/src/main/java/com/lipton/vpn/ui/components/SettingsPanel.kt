@@ -53,14 +53,12 @@ fun SettingsPanel(
 
     val sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
+    val handleClose: () -> Unit = {
+        scope.launch { sheetState.hide() }.invokeOnCompletion { onClose() }
+    }
+
     ModalBottomSheet(
-        onDismissRequest = {
-            when {
-                showLogs          -> showLogs = false
-                showBypassDomains -> showBypassDomains = false
-                else              -> onClose()
-            }
-        },
+        onDismissRequest = onClose,
         sheetState     = sheetState,
         containerColor = lc.bgSheet,
         dragHandle = {
@@ -109,7 +107,7 @@ fun SettingsPanel(
                             .clip(RoundedCornerShape(50))
                             .background(lc.cardBg)
                             .border(1.dp, lc.cardBorder, RoundedCornerShape(50))
-                            .clickable(onClick = onClose),
+                            .clickable(onClick = handleClose),
                         contentAlignment = Alignment.Center,
                     ) {
                         Text("✕", fontSize = 11.sp, color = lc.textSecondary)
@@ -371,8 +369,7 @@ private fun SettingsToggleRow(
             Text(label, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = lc.textPrimary)
             Text(subtitle, fontSize = 11.5.sp, color = lc.textTertiary, lineHeight = 16.sp)
         }
-        // Pass no-op: the Row above handles the click for the whole row
-        LiptonSwitch(checked = checked, onCheckedChange = {})
+        LiptonSwitch(checked = checked)
     }
 }
 
@@ -441,7 +438,7 @@ private fun SettingsNavRow(
 }
 
 @Composable
-fun LiptonSwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+fun LiptonSwitch(checked: Boolean, onCheckedChange: ((Boolean) -> Unit)? = null) {
     val trackColor by animateColorAsState(
         targetValue = if (checked) Green else Color.White.copy(alpha = 0.1f),
         animationSpec = tween(250, easing = FastOutSlowInEasing),
@@ -459,7 +456,7 @@ fun LiptonSwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
             .clip(RoundedCornerShape(14.dp))
             .background(trackColor)
             .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(14.dp))
-            .clickable { onCheckedChange(!checked) }
+            .let { m -> if (onCheckedChange != null) m.clickable { onCheckedChange(!checked) } else m }
     ) {
         Box(
             modifier = Modifier
