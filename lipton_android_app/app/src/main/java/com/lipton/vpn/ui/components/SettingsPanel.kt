@@ -30,14 +30,12 @@ import kotlinx.coroutines.launch
 fun SettingsPanel(
     bypassRu:            Boolean,
     bypassDomains:       List<String>,
-    themeMode:           AppTheme,
     autoConnectOnLaunch: Boolean,
     logLines:            List<String>,
     trialUsed:           Boolean,
     onBypassRuChange:    (Boolean) -> Unit,
     onAddDomain:         (String) -> Unit,
     onRemoveDomain:      (String) -> Unit,
-    onThemeChange:       (AppTheme) -> Unit,
     onAutoConnectChange: (Boolean) -> Unit,
     onClearLogs:         () -> Unit,
     onGetTrial:          suspend (Int) -> Unit,
@@ -116,12 +114,6 @@ fun SettingsPanel(
                     ) {
                         Text("✕", fontSize = 11.sp, color = lc.textSecondary)
                     }
-                }
-
-                // ── ОФОРМЛЕНИЕ ───────────────────────────────────────────────
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    SectionLabel("ОФОРМЛЕНИЕ")
-                    ThemeSelector(current = themeMode, onSelect = onThemeChange)
                 }
 
                 // ── ПОДКЛЮЧЕНИЕ ──────────────────────────────────────────────
@@ -354,61 +346,6 @@ private fun SectionLabel(text: String) {
         letterSpacing = 1.3.sp,
         color = Green.copy(alpha = 0.7f),
     )
-}
-
-@Composable
-private fun ThemeSelector(current: AppTheme, onSelect: (AppTheme) -> Unit) {
-    val lc = LocalLiptonColors.current
-    val options = listOf(
-        AppTheme.SYSTEM to "Системная",
-        AppTheme.DARK   to "Тёмная",
-        AppTheme.LIGHT  to "Светлая",
-    )
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(lc.cardBg)
-            .border(1.dp, lc.cardBorder, RoundedCornerShape(12.dp))
-            .padding(6.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        options.forEach { (theme, label) ->
-            val selected = current == theme
-            val bgColor by animateColorAsState(
-                targetValue = if (selected) Green.copy(alpha = 0.2f) else Color.Transparent,
-                animationSpec = tween(250, easing = FastOutSlowInEasing),
-                label = "theme_bg_$label",
-            )
-            val textColor by animateColorAsState(
-                targetValue = if (selected) Green else lc.textTertiary,
-                animationSpec = tween(250, easing = FastOutSlowInEasing),
-                label = "theme_text_$label",
-            )
-            val borderColor by animateColorAsState(
-                targetValue = if (selected) Green.copy(alpha = 0.4f) else Color.Transparent,
-                animationSpec = tween(250, easing = FastOutSlowInEasing),
-                label = "theme_border_$label",
-            )
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(bgColor)
-                    .border(1.dp, borderColor, RoundedCornerShape(8.dp))
-                    .clickable { onSelect(theme) }
-                    .padding(vertical = 10.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = label,
-                    fontSize = 12.sp,
-                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                    color = textColor,
-                )
-            }
-        }
-    }
 }
 
 @Composable

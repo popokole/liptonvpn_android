@@ -1,11 +1,14 @@
 package com.lipton.vpn
 
 import android.Manifest
+import android.animation.ObjectAnimator
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.view.View
+import android.view.animation.DecelerateInterpolator
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -43,8 +46,19 @@ class MainActivity : ComponentActivity() {
     ) { /* результат не требует обработки */ }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        installSplashScreen()
+        val splash = installSplashScreen()
         super.onCreate(savedInstanceState)
+
+        splash.setKeepOnScreenCondition { viewModel.state.value.loading }
+        splash.setOnExitAnimationListener { view ->
+            val anim = ObjectAnimator.ofFloat(view.view, View.ALPHA, 1f, 0f)
+            anim.duration = 380L
+            anim.interpolator = DecelerateInterpolator()
+            anim.addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(a: android.animation.Animator) { view.remove() }
+            })
+            anim.start()
+        }
 
         // Запрашиваем разрешение на уведомления (нужно для VPN foreground notification)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -57,7 +71,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val state by viewModel.state.collectAsState()
-            LiptonTheme(appTheme = state.themeMode) {
+            LiptonTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     if (!state.loading && state.isFirstLaunch) {
                         OnboardingScreen(onFinish = { viewModel.dismissFirstLaunch() })

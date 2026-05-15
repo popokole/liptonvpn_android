@@ -193,7 +193,6 @@ fun MainScreen(
                         )
                     }
 
-                    ComingSoonSection()
                 }
 
                 Footer(activity = activity)
@@ -213,14 +212,12 @@ fun MainScreen(
                 SettingsPanel(
                     bypassRu             = state.bypassRu,
                     bypassDomains        = state.bypassDomains,
-                    themeMode            = state.themeMode,
                     autoConnectOnLaunch  = state.autoConnectOnLaunch,
                     logLines             = state.logLines,
                     trialUsed            = state.trialUsed,
                     onBypassRuChange     = { viewModel.setBypassRu(it) },
                     onAddDomain          = { viewModel.addBypassDomain(it) },
                     onRemoveDomain       = { viewModel.removeBypassDomain(it) },
-                    onThemeChange        = { viewModel.setThemeMode(it) },
                     onAutoConnectChange  = { viewModel.setAutoConnectOnLaunch(it) },
                     onClearLogs          = { viewModel.clearLogs() },
                     onGetTrial           = { mins -> viewModel.getTrialSubscription(mins) },
@@ -395,66 +392,6 @@ private fun ConnectSection(state: UiState, onConnect: () -> Unit) {
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = Red,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ComingSoonSection() {
-    val lc = LocalLiptonColors.current
-    var shaking by remember { mutableStateOf(false) }
-    val shakeOffset by animateFloatAsState(
-        targetValue = if (shaking) 5f else 0f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioHighBouncy, stiffness = Spring.StiffnessHigh),
-        finishedListener = { shaking = false },
-        label = "shake",
-    )
-
-    Column {
-        Text(
-            "СКОРО",
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 1.4.sp,
-            color = Green.copy(alpha = 0.7f),
-            modifier = Modifier.padding(start = 4.dp, end = 4.dp, bottom = 8.dp),
-        )
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .offset(x = shakeOffset.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(lc.cardBg.copy(alpha = 0.6f))
-                .border(1.dp, lc.cardBorder, RoundedCornerShape(14.dp))
-                .clickable { shaking = true }
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text("📊", fontSize = 20.sp)
-            Text(
-                "Статистика",
-                fontSize = 13.5.sp,
-                fontWeight = FontWeight.Medium,
-                color = lc.textPrimary,
-                modifier = Modifier.weight(1f),
-            )
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(lc.greenCard)
-                    .border(1.dp, lc.greenBorder, RoundedCornerShape(20.dp))
-                    .padding(horizontal = 9.dp, vertical = 3.dp),
-            ) {
-                Text(
-                    "СКОРО",
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.4.sp,
-                    color = lc.textTertiary,
                 )
             }
         }

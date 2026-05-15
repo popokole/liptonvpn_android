@@ -70,7 +70,11 @@ fun LogsScreen(
                 Text("Логи подключения", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = lc.textPrimary)
             }
 
-            if (logLines.isNotEmpty()) {
+            AnimatedVisibility(
+                visible = logLines.isNotEmpty(),
+                enter = fadeIn(tween(200)) + expandHorizontally(expandFrom = Alignment.End),
+                exit  = fadeOut(tween(150)) + shrinkHorizontally(shrinkTowards = Alignment.End),
+            ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     // Кнопка копирования
                     AnimatedContent(

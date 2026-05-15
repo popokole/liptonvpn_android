@@ -28,6 +28,18 @@
         android:textStyle="bold"
         android:textColor="#EDFFF2" />
 
+    <TextView
+        android:id="@+id/widget_server"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:text=""
+        android:textSize="10sp"
+        android:textColor="#8CB4F0C3"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:visibility="gone" />
+
     <LinearLayout
         android:id="@+id/widget_btn"
         android:layout_width="wrap_content"

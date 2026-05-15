@@ -33,6 +33,15 @@ class LiptonWidget : AppWidgetProvider() {
             views.setTextColor(R.id.widget_status,
                 if (connected) 0xFF34D058.toInt() else 0xFFEDFFF2.toInt())
 
+            val remark = LiptonVpnService.currentServerRemark
+                .replace(Regex("[\uD83C][\uDDE6-\uDDFF][\uD83C][\uDDE6-\uDDFF]\\s*"), "").trim()
+            if (connected && remark.isNotEmpty()) {
+                views.setTextViewText(R.id.widget_server, remark)
+                views.setViewVisibility(R.id.widget_server, android.view.View.VISIBLE)
+            } else {
+                views.setViewVisibility(R.id.widget_server, android.view.View.GONE)
+            }
+
             // Кнопка — toggle VPN
             val toggleIntent = PendingIntent.getBroadcast(
                 context,

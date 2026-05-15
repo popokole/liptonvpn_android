@@ -1,6 +1,5 @@
 package com.lipton.vpn.ui.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.Color
@@ -76,31 +75,15 @@ enum class AppTheme { SYSTEM, DARK, LIGHT }
 // ─── LiptonTheme ─────────────────────────────────────────────────────────────
 
 @Composable
-fun LiptonTheme(appTheme: AppTheme = AppTheme.SYSTEM, content: @Composable () -> Unit) {
-    val systemDark = isSystemInDarkTheme()
-    val isDark = when (appTheme) {
-        AppTheme.DARK   -> true
-        AppTheme.LIGHT  -> false
-        AppTheme.SYSTEM -> systemDark
-    }
-    val lc = if (isDark) darkLiptonColors() else lightLiptonColors()
-    val m3 = if (isDark) {
-        darkColorScheme(
-            primary = Green, onPrimary = Color.Black,
-            primaryContainer = lc.greenCard, secondary = Green2,
-            background = lc.bgDeep, surface = lc.bgCard,
-            onBackground = lc.textPrimary, onSurface = lc.textPrimary,
-            error = Red, outline = lc.cardBorder,
-        )
-    } else {
-        lightColorScheme(
-            primary = Green2, onPrimary = Color.White,
-            primaryContainer = lc.greenCard, secondary = Green2,
-            background = lc.bgDeep, surface = lc.bgCard,
-            onBackground = lc.textPrimary, onSurface = lc.textPrimary,
-            error = Red, outline = lc.cardBorder,
-        )
-    }
+fun LiptonTheme(appTheme: AppTheme = AppTheme.DARK, content: @Composable () -> Unit) {
+    val lc = darkLiptonColors()
+    val m3 = darkColorScheme(
+        primary = Green, onPrimary = Color.Black,
+        primaryContainer = lc.greenCard, secondary = Green2,
+        background = lc.bgDeep, surface = lc.bgCard,
+        onBackground = lc.textPrimary, onSurface = lc.textPrimary,
+        error = Red, outline = lc.cardBorder,
+    )
     CompositionLocalProvider(LocalLiptonColors provides lc) {
         MaterialTheme(colorScheme = m3, typography = Typography(), content = content)
     }

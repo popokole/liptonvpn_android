@@ -198,7 +198,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private fun loadInitialData() {
         viewModelScope.launch {
             val subs            = settings.getSubscriptions()
-            val activeId        = settings.getActiveServerId()
             val bypassRu        = settings.getBypassRu()
             val bypassDomains   = settings.getBypassDomains()
             val autostart       = settings.getAutostart()
@@ -208,6 +207,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val firstLaunchDone = settings.getFirstLaunchDone()
 
             if (!firstLaunchDone) settings.setFirstLaunchDone(true)
+
+            // Auto-select first server if none is saved
+            var activeId = settings.getActiveServerId()
+            val allServers = subs.flatMap { it.servers }
+            if (activeId == null || allServers.none { it.id == activeId }) {
+                activeId = allServers.firstOrNull()?.id
+                if (activeId != null) settings.setActiveServerId(activeId)
+            }
 
             _state.update {
                 it.copy(
@@ -222,6 +229,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     isFirstLaunch       = !firstLaunchDone,
                     loading             = false,
                 )
+            }
+
+            // Auto-ping all subscriptions in background after load
+            if (subs.isNotEmpty()) {
+                launch {
+                    _state.update { it.copy(pinging = true) }
+                    subs.forEach { sub -> subManager.pingAll(sub.id) }
+                    _state.update { it.copy(pinging = false) }
+                }
             }
         }
     }

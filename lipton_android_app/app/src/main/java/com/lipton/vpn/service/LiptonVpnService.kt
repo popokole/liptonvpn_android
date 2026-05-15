@@ -36,6 +36,9 @@ class LiptonVpnService : VpnService() {
         @Volatile var isConnected: Boolean = false
             private set
 
+        @Volatile var currentServerRemark: String = ""
+            private set
+
         init { System.loadLibrary("lipton_native") }
     }
 
@@ -165,6 +168,7 @@ class LiptonVpnService : VpnService() {
                 startTun2Socks(tunFd, socksPort)
                 startForeground(NOTIF_ID, buildNotification(server.remark))
                 isConnected = true
+                currentServerRemark = server.remark
                 notifyWidgets()
                 withContext(Dispatchers.Main) { status = VpnStatus.CONNECTED }
                 Log.i(TAG, "Подключено: ${server.remark}")
@@ -208,6 +212,7 @@ class LiptonVpnService : VpnService() {
         status = VpnStatus.DISCONNECTING
         withContext(Dispatchers.IO) { cleanupVpn() }
         isConnected = false
+        currentServerRemark = ""
         notifyWidgets()
         status = VpnStatus.DISCONNECTED
         stopForeground(STOP_FOREGROUND_REMOVE)
@@ -302,6 +307,7 @@ class LiptonVpnService : VpnService() {
                     Log.e(TAG, "tun2socks завершился неожиданно")
                     logListener?.invoke("[tun2socks] процесс завершился, VPN остановлен")
                     isConnected = false
+                    currentServerRemark = ""
                     notifyWidgets()
                     withContext(Dispatchers.Main) { status = VpnStatus.DISCONNECTED }
                     cleanupVpn()
@@ -420,6 +426,7 @@ class LiptonVpnService : VpnService() {
 
     override fun onDestroy() {
         isConnected = false
+        currentServerRemark = ""
         notifyWidgets()
         scope.cancel()
         val pid = tun2socksPid
