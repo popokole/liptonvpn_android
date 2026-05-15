@@ -374,6 +374,8 @@ class LiptonVpnService : VpnService() {
                 xrayProcess?.waitFor()
                 if (status == VpnStatus.CONNECTED) {
                     isConnected = false
+                    currentServerRemark = ""
+                    notifyWidgets()
                     withContext(Dispatchers.Main) { status = VpnStatus.DISCONNECTED }
                     cleanupVpn()
                     stopForeground(STOP_FOREGROUND_REMOVE)
