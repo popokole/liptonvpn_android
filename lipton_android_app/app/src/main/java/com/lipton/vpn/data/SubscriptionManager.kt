@@ -117,7 +117,21 @@ class SubscriptionManager(private val settings: SettingsManager) {
 
     suspend fun getTrialSubscription(hwid: String, durationMinutes: Int): Subscription =
         withContext(Dispatchers.IO) {
-            add(TRIAL_URL, isTrial = true)
+            val trialApiUrl = "https://sub.popokole.online/trial?hwid=$hwid&duration=${durationMinutes}m"
+            val req = Request.Builder()
+                .url(trialApiUrl)
+                .header("User-Agent", "LiptonVPN/$APP_VERSION (Android)")
+                .header("X-App-Name", "LiptonVPN")
+                .header("X-Hwid", hwid)
+                .build()
+            val resp = client.newCall(req).execute()
+            val bodyStr = resp.body?.string()?.trim() ?: ""
+            if (!resp.isSuccessful) {
+                throw Exception("Ошибка сервера при получении пробного доступа (${resp.code})")
+            }
+            if (bodyStr.isBlank()) throw Exception("Пробный доступ временно недоступен")
+            val subUrl = if (bodyStr.startsWith("http")) bodyStr else TRIAL_URL
+            add(subUrl, isTrial = true)
         }
 
     // ─── Ping ─────────────────────────────────────────────────────────────────

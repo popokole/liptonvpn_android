@@ -233,25 +233,43 @@ class LiptonVpnService : VpnService() {
         val bin = File(nativeDir, "libtun2socks.so")
         if (!bin.exists()) {
             Log.w(TAG, "libtun2socks.so не найден — трафик из TUN не будет перенаправлен в xray")
+            logListener?.invoke("[tun2socks] ОШИБКА: libtun2socks.so не найден в $nativeDir")
             return
         }
         bin.setExecutable(true, true)
         stopTun2SocksProcess()
-        // xjasonlyu/tun2socks: -device fd://N  -proxy socks5://addr:port
+        Log.i(TAG, "tun2socks: запуск с fd=$tunFd, proxy=socks5://127.0.0.1:$socksPort")
         val pb = ProcessBuilder(
             bin.absolutePath,
             "-device", "fd://$tunFd",
             "-proxy",  "socks5://127.0.0.1:$socksPort",
-            "-loglevel", "warning",
+            "-loglevel", "info",
         ).redirectErrorStream(true)
         tun2socksProcess = pb.start()
-        Log.i(TAG, "tun2socks запущен на fd=$tunFd → socks5://127.0.0.1:$socksPort")
-        // capture tun2socks output into logListener
+        // Читаем вывод tun2socks
         scope.launch(Dispatchers.IO) {
             try {
                 tun2socksProcess?.inputStream?.bufferedReader()?.forEachLine { line ->
                     Log.d(TAG, "[tun2socks] $line")
                     logListener?.invoke("[tun2socks] $line")
+                }
+            } catch (_: Exception) {}
+        }
+        // Проверяем через 1.5 сек, что процесс жив
+        scope.launch(Dispatchers.IO) {
+            try {
+                Thread.sleep(1500)
+                val alive = tun2socksProcess?.isAlive ?: false
+                if (!alive) {
+                    val exitCode = runCatching { tun2socksProcess?.exitValue() }.getOrDefault(-1)
+                    Log.e(TAG, "tun2socks завершился сразу после запуска, exitCode=$exitCode")
+                    logListener?.invoke("[tun2socks] ОШИБКА: процесс завершился (code=$exitCode, fd=$tunFd)")
+                    withContext(Dispatchers.Main) {
+                        if (status == VpnStatus.CONNECTED) status = VpnStatus.ERROR
+                    }
+                } else {
+                    Log.i(TAG, "tun2socks жив, трафик должен идти через VPN")
+                    logListener?.invoke("[tun2socks] процесс запущен, fd=$tunFd -> socks5:$socksPort")
                 }
             } catch (_: Exception) {}
         }
