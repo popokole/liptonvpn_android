@@ -260,6 +260,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 if (activeId != null) settings.setActiveServerId(activeId)
             }
 
+            val crashLines = CrashLogger.readAndClear(getApplication()) ?: emptyList()
+
             _state.update {
                 it.copy(
                     subscriptions       = subs,
@@ -271,6 +273,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     autoConnectOnLaunch = autoConnect,
                     trialUsed           = trialUsed,
                     isFirstLaunch       = !firstLaunchDone,
+                    logLines            = crashLines,
                     loading             = false,
                 )
             }

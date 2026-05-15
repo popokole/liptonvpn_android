@@ -446,7 +446,7 @@ fun LiptonSwitch(checked: Boolean, onCheckedChange: ((Boolean) -> Unit)? = null)
     )
     val thumbOffset by animateFloatAsState(
         targetValue = if (checked) 18f else 0f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+        animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
         label = "thumb",
     )
 
@@ -460,7 +460,7 @@ fun LiptonSwitch(checked: Boolean, onCheckedChange: ((Boolean) -> Unit)? = null)
     ) {
         Box(
             modifier = Modifier
-                .padding(start = 2.dp + thumbOffset.dp, top = 2.dp)
+                .padding(start = (2f + thumbOffset.coerceIn(0f, 18f)).dp, top = 2.dp)
                 .size(22.dp)
                 .clip(RoundedCornerShape(50))
                 .background(if (checked) Color.White else Color.White.copy(alpha = 0.5f))

@@ -46,6 +46,7 @@ class MainActivity : ComponentActivity() {
     ) { /* результат не требует обработки */ }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        CrashLogger.install(this)
         val splash = installSplashScreen()
         super.onCreate(savedInstanceState)
 
