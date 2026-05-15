@@ -93,7 +93,6 @@ class LiptonServerWidget : AppWidgetProvider() {
                 val nextServer = allServers[(currentIdx + 1) % allServers.size]
 
                 settings.setActiveServerId(nextServer.id)
-                LiptonVpnService.currentServerRemark = nextServer.displayName()
 
                 if (LiptonVpnService.isConnected) {
                     context.startForegroundService(
