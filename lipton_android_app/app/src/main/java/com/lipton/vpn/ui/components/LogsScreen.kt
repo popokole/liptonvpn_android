@@ -53,6 +53,7 @@ fun LogsScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Row(
+                modifier = Modifier.weight(1f).padding(end = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -127,7 +128,7 @@ fun LogsScreen(
         }
 
         Text(
-            text = "Вывод xray-core и tun2socks в реальном времени",
+            text = "Действия пользователя (>>), xray-core и tun2socks",
             fontSize = 11.5.sp,
             color = lc.textTertiary,
             lineHeight = 17.sp,
@@ -161,6 +162,7 @@ fun LogsScreen(
             } else {
                 logLines.forEach { line ->
                     val color = when {
+                        line.contains(">> ") -> Green.copy(alpha = 0.9f)
                         line.contains("error",   ignoreCase = true) ||
                         line.contains("failed",  ignoreCase = true) ||
                         line.contains("refused",  ignoreCase = true) -> Red

@@ -23,11 +23,16 @@ import com.lipton.vpn.data.SubscriptionManager
 import com.lipton.vpn.data.UpdateChecker
 import com.lipton.vpn.data.UpdateInfo
 import com.lipton.vpn.data.model.Subscription
+import com.lipton.vpn.data.model.displayName
 import com.lipton.vpn.service.LiptonVpnService
 import com.lipton.vpn.ui.theme.AppTheme
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.ConcurrentLinkedQueue
 
@@ -66,11 +71,24 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val pendingLogLines  = ConcurrentLinkedQueue<String>()
     private val logFlushPending  = AtomicBoolean(false)
 
+    private fun logAction(message: String) {
+        val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
+        _state.update { it.copy(logLines = (it.logLines + "[$time] >> $message").takeLast(500)) }
+    }
+
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
             val binder = service as? LiptonVpnService.LocalBinder ?: return
             vpnService = binder.getService().also { svc ->
                 svc.statusListener = { newStatus ->
+                    val statusMsg = when (newStatus) {
+                        LiptonVpnService.VpnStatus.CONNECTING    -> "Подключение к VPN..."
+                        LiptonVpnService.VpnStatus.CONNECTED     -> "VPN подключён"
+                        LiptonVpnService.VpnStatus.DISCONNECTING -> "Отключение VPN..."
+                        LiptonVpnService.VpnStatus.DISCONNECTED  -> "VPN отключён"
+                        LiptonVpnService.VpnStatus.ERROR         -> "Ошибка подключения"
+                    }
+                    logAction(statusMsg)
                     _state.update {
                         it.copy(
                             status = newStatus,
@@ -111,10 +129,36 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         loadInitialData()
         observeSettings()
         checkForUpdate()
+        watchTrialExpiry()
     }
 
     private fun checkForUpdate() {
         viewModelScope.launch { doCheckUpdate() }
+    }
+
+    private fun watchTrialExpiry() {
+        viewModelScope.launch {
+            while (true) {
+                delay(30_000)
+                val now = System.currentTimeMillis() / 1000L
+                val subs = settings.getSubscriptions()
+                val expired = subs.filter { it.isTrial && it.userInfo.expire in 1 until now }
+                if (expired.isNotEmpty()) {
+                    expired.forEach { sub ->
+                        subManager.remove(sub.id)
+                        logAction("Пробный доступ истёк — подписка удалена")
+                    }
+                    if (state.value.status == LiptonVpnService.VpnStatus.CONNECTED ||
+                        state.value.status == LiptonVpnService.VpnStatus.CONNECTING) {
+                        disconnect(getApplication())
+                        logAction("VPN отключён: срок пробного доступа истёк")
+                    }
+                    _state.update { it.copy(
+                        errorMessage = "Пробный доступ истёк. Оформите подписку для продолжения."
+                    ) }
+                }
+            }
+        }
     }
 
     suspend fun manualCheckUpdate(): Boolean {
@@ -300,6 +344,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun connect(context: Context, serverId: String) {
+        val name = state.value.subscriptions.flatMap { it.servers }
+            .find { it.id == serverId }?.displayName() ?: serverId
+        logAction("Подключение к: $name")
         viewModelScope.launch { settings.setActiveServerId(serverId) }
         _state.update { it.copy(activeServerId = serverId) }
 
@@ -311,6 +358,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun disconnect(context: Context) {
+        logAction("Отключение VPN")
         Intent(context, LiptonVpnService::class.java).apply {
             action = LiptonVpnService.ACTION_STOP
             context.startService(this)
@@ -318,6 +366,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun selectServer(context: Context, serverId: String) {
+        val name = state.value.subscriptions.flatMap { it.servers }
+            .find { it.id == serverId }?.displayName() ?: serverId
+        logAction("Выбран сервер: $name")
         viewModelScope.launch { settings.setActiveServerId(serverId) }
         _state.update { it.copy(activeServerId = serverId) }
         if (state.value.status == LiptonVpnService.VpnStatus.CONNECTED) {
@@ -349,6 +400,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     // ─── Settings ─────────────────────────────────────────────────────────────
 
     fun setBypassRu(enabled: Boolean) {
+        logAction("Обход РУ трафика: ${if (enabled) "включён" else "выключен"}")
         viewModelScope.launch {
             settings.setBypassRu(enabled)
             if (state.value.status == LiptonVpnService.VpnStatus.CONNECTED) {
@@ -370,6 +422,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun setAutoConnectOnLaunch(enabled: Boolean) {
+        logAction("Авто-подключение при запуске: ${if (enabled) "включено" else "выключено"}")
         viewModelScope.launch { settings.setAutoConnectOnLaunch(enabled) }
         _state.update { it.copy(autoConnectOnLaunch = enabled) }
     }
