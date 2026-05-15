@@ -55,6 +55,8 @@ fun SettingsPanel(
     var showLogs          by remember { mutableStateOf(false) }
     var confirmReset      by remember { mutableStateOf(false) }
 
+    val sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
     ModalBottomSheet(
         onDismissRequest = {
             when {
@@ -63,6 +65,7 @@ fun SettingsPanel(
                 else              -> onClose()
             }
         },
+        sheetState     = sheetState,
         containerColor = lc.bgSheet,
         dragHandle = {
             Box(
@@ -92,6 +95,7 @@ fun SettingsPanel(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
                     .padding(horizontal = 18.dp)
                     .padding(bottom = 36.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
