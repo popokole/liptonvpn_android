@@ -371,7 +371,8 @@ private fun SettingsToggleRow(
             Text(label, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = lc.textPrimary)
             Text(subtitle, fontSize = 11.5.sp, color = lc.textTertiary, lineHeight = 16.sp)
         }
-        LiptonSwitch(checked = checked, onCheckedChange = onChange)
+        // Pass no-op: the Row above handles the click for the whole row
+        LiptonSwitch(checked = checked, onCheckedChange = {})
     }
 }
 

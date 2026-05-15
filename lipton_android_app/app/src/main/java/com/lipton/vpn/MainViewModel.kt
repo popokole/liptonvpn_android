@@ -349,11 +349,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     // ─── Settings ─────────────────────────────────────────────────────────────
 
     fun setBypassRu(enabled: Boolean) {
-        viewModelScope.launch { settings.setBypassRu(enabled) }
-        if (state.value.status == LiptonVpnService.VpnStatus.CONNECTED) {
-            val serverId = state.value.activeServerId
-                ?: state.value.subscriptions.flatMap { it.servers }.firstOrNull()?.id
-            if (serverId != null) connect(getApplication(), serverId)
+        viewModelScope.launch {
+            settings.setBypassRu(enabled)
+            if (state.value.status == LiptonVpnService.VpnStatus.CONNECTED) {
+                val serverId = state.value.activeServerId
+                    ?: state.value.subscriptions.flatMap { it.servers }.firstOrNull()?.id
+                if (serverId != null) try { connect(getApplication(), serverId) } catch (_: Exception) {}
+            }
         }
     }
 
