@@ -381,14 +381,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun resetProfile(context: Context) {
         viewModelScope.launch {
-            disconnect(context)
-            settings.reset()
+            if (state.value.status == LiptonVpnService.VpnStatus.CONNECTED ||
+                state.value.status == LiptonVpnService.VpnStatus.CONNECTING) {
+                disconnect(context)
+            }
+            settings.resetNetworkSettings()
             _state.update {
                 it.copy(
-                    subscriptions  = emptyList(),
-                    activeServerId = null,
-                    bypassDomains  = emptyList(),
-                    trialUsed      = false,
+                    bypassRu            = true,
+                    bypassDomains       = emptyList(),
+                    autoConnectOnLaunch = false,
                 )
             }
         }

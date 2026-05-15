@@ -146,12 +146,7 @@ private fun ServerItem(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             if (isTrialOnly) {
-                Box(
-                    modifier = Modifier
-                        .size(20.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(Green),
-                )
+                Text("🎁", fontSize = 20.sp)
             } else {
                 Text(
                     text = server.flagEmoji().ifEmpty { "🌐" },

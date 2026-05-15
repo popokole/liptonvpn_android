@@ -32,7 +32,6 @@ fun SettingsPanel(
     bypassDomains:       List<String>,
     themeMode:           AppTheme,
     autoConnectOnLaunch: Boolean,
-    autostart:           Boolean,
     logLines:            List<String>,
     trialUsed:           Boolean,
     onBypassRuChange:    (Boolean) -> Unit,
@@ -40,7 +39,6 @@ fun SettingsPanel(
     onRemoveDomain:      (String) -> Unit,
     onThemeChange:       (AppTheme) -> Unit,
     onAutoConnectChange: (Boolean) -> Unit,
-    onAutostartChange:   (Boolean) -> Unit,
     onClearLogs:         () -> Unit,
     onGetTrial:          suspend (Int) -> Unit,
     onBuyClick:          () -> Unit,
@@ -131,13 +129,6 @@ fun SettingsPanel(
                     SectionLabel("ПОДКЛЮЧЕНИЕ")
 
                     SettingsToggleRow(
-                        label    = "Автозапуск при загрузке",
-                        subtitle = "VPN включается автоматически при старте телефона",
-                        checked  = autostart,
-                        onChange = onAutostartChange,
-                    )
-
-                    SettingsToggleRow(
                         label    = "Подключаться при открытии",
                         subtitle = "Автоматически включать VPN при запуске приложения",
                         checked  = autoConnectOnLaunch,
@@ -211,7 +202,7 @@ fun SettingsPanel(
                                 verticalArrangement = Arrangement.spacedBy(12.dp),
                             ) {
                                 Text(
-                                    "Удалит все подписки и сбросит настройки. Уверен?",
+                                    "Сбросит настройки VPN: обход РУ, исключения, автоподключение. Подписки сохранятся. Уверен?",
                                     fontSize = 13.sp,
                                     color = lc.textSecondary,
                                     lineHeight = 19.sp,

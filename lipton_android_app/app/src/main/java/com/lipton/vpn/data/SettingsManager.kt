@@ -169,4 +169,14 @@ class SettingsManager(private val context: Context) {
             prefs.remove(KEY_TRIAL_DATE)
         }
     }
+
+    suspend fun resetNetworkSettings() {
+        context.dataStore.edit { prefs ->
+            prefs.remove(KEY_BYPASS_RU)
+            prefs.remove(KEY_BYPASS_DOMAINS)
+            prefs.remove(KEY_SOCKS_PORT)
+            prefs.remove(KEY_HTTP_PORT)
+            prefs.remove(KEY_AUTO_CONNECT)
+        }
+    }
 }

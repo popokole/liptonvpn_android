@@ -215,7 +215,6 @@ fun MainScreen(
                     bypassDomains        = state.bypassDomains,
                     themeMode            = state.themeMode,
                     autoConnectOnLaunch  = state.autoConnectOnLaunch,
-                    autostart            = state.autostart,
                     logLines             = state.logLines,
                     trialUsed            = state.trialUsed,
                     onBypassRuChange     = { viewModel.setBypassRu(it) },
@@ -223,7 +222,6 @@ fun MainScreen(
                     onRemoveDomain       = { viewModel.removeBypassDomain(it) },
                     onThemeChange        = { viewModel.setThemeMode(it) },
                     onAutoConnectChange  = { viewModel.setAutoConnectOnLaunch(it) },
-                    onAutostartChange    = { viewModel.setAutostart(it) },
                     onClearLogs          = { viewModel.clearLogs() },
                     onGetTrial           = { mins -> viewModel.getTrialSubscription(mins) },
                     onBuyClick           = {
