@@ -17,6 +17,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.lipton.vpn.BuildConfig
 import com.lipton.vpn.R
 import com.lipton.vpn.data.SettingsManager
 import com.lipton.vpn.data.SubscriptionManager
@@ -162,13 +163,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     suspend fun manualCheckUpdate(): Boolean {
-        val info = UpdateChecker.checkForUpdate(com.lipton.vpn.BuildConfig.VERSION_NAME)
+        val info = UpdateChecker.checkForUpdate(BuildConfig.VERSION_NAME)
         _state.update { it.copy(updateInfo = info) }
         return info != null
     }
 
     private suspend fun doCheckUpdate() {
-        val info = UpdateChecker.checkForUpdate(com.lipton.vpn.BuildConfig.VERSION_NAME)
+        val info = runCatching { UpdateChecker.checkForUpdate(BuildConfig.VERSION_NAME) }.getOrNull()
         if (info != null) {
             _state.update { it.copy(updateInfo = info) }
             downloadUpdate()
