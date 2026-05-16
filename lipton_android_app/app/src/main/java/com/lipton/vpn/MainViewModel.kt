@@ -27,6 +27,7 @@ import com.lipton.vpn.data.model.Subscription
 import com.lipton.vpn.data.model.displayName
 import com.lipton.vpn.service.LiptonVpnService
 import com.lipton.vpn.ui.theme.AppTheme
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -36,6 +37,16 @@ import java.util.Date
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.ConcurrentLinkedQueue
+
+sealed class ConnectionError {
+    object Timeout         : ConnectionError()
+    object NoInternet      : ConnectionError()
+    object DnsFail         : ConnectionError()
+    object ServerUnreachable : ConnectionError()
+    object XrayCrash       : ConnectionError()
+    object Tun2socksFail   : ConnectionError()
+    data class Unknown(val rawMessage: String = "") : ConnectionError()
+}
 
 data class UiState(
     val status:              LiptonVpnService.VpnStatus = LiptonVpnService.VpnStatus.DISCONNECTED,
@@ -55,6 +66,7 @@ data class UiState(
     val downloadProgress:    Int?               = null,
     val downloadedApkPath:   String?            = null,
     val errorMessage:        String?            = null,
+    val connectionError:     ConnectionError?   = null,
 )
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
@@ -67,6 +79,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private var vpnService:            LiptonVpnService?              = null
     private var vpnPermissionLauncher: ActivityResultLauncher<Intent>? = null
+
+    private val recentConnectionLogs = mutableListOf<String>()
+    private var connectionTimeoutJob: Job? = null
 
     // Log debouncing — batch xray log lines to avoid per-line recomposition
     private val pendingLogLines  = ConcurrentLinkedQueue<String>()
@@ -90,16 +105,28 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         LiptonVpnService.VpnStatus.ERROR         -> "Ошибка подключения"
                     }
                     logAction(statusMsg)
+                    when (newStatus) {
+                        LiptonVpnService.VpnStatus.CONNECTING -> {
+                            synchronized(recentConnectionLogs) { recentConnectionLogs.clear() }
+                            startConnectionTimeout()
+                        }
+                        else -> connectionTimeoutJob?.cancel()
+                    }
                     _state.update {
                         it.copy(
                             status = newStatus,
-                            errorMessage = if (newStatus == LiptonVpnService.VpnStatus.ERROR)
-                                "Не удалось подключиться. Проверьте сервер или интернет."
-                            else it.errorMessage,
+                            connectionError = when (newStatus) {
+                                LiptonVpnService.VpnStatus.ERROR      -> classifyConnectionError()
+                                LiptonVpnService.VpnStatus.CONNECTED  -> null
+                                else                                   -> it.connectionError
+                            },
                         )
                     }
                 }
                 svc.logListener = { line ->
+                    if (_state.value.status == LiptonVpnService.VpnStatus.CONNECTING) {
+                        synchronized(recentConnectionLogs) { recentConnectionLogs.add(line) }
+                    }
                     pendingLogLines.add(line)
                     // Start a flush job only if none is pending — at most one per 150ms
                     if (logFlushPending.compareAndSet(false, true)) {
@@ -181,6 +208,52 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun dismissFirstLaunch() = _state.update { it.copy(isFirstLaunch = false) }
     fun clearError() = _state.update { it.copy(errorMessage = null) }
+    fun clearConnectionError() = _state.update { it.copy(connectionError = null) }
+
+    fun switchToNextServer(context: Context) {
+        clearConnectionError()
+        val allServers = state.value.subscriptions.flatMap { it.servers }
+        if (allServers.isEmpty()) return
+        val currentIdx = allServers.indexOfFirst { it.id == state.value.activeServerId }
+        val nextServer = allServers[(currentIdx + 1) % allServers.size]
+        connect(context, nextServer.id)
+    }
+
+    private fun startConnectionTimeout() {
+        connectionTimeoutJob?.cancel()
+        connectionTimeoutJob = viewModelScope.launch {
+            delay(20_000)
+            if (state.value.status == LiptonVpnService.VpnStatus.CONNECTING) {
+                disconnect(getApplication())
+                _state.update { it.copy(connectionError = ConnectionError.Timeout) }
+            }
+        }
+    }
+
+    private fun classifyConnectionError(): ConnectionError {
+        val logs = synchronized(recentConnectionLogs) {
+            recentConnectionLogs.joinToString("\n")
+        }.lowercase()
+        return when {
+            logs.contains("i/o timeout") ||
+            logs.contains("connection timed out") ||
+            logs.contains("context deadline exceeded") -> ConnectionError.Timeout
+
+            logs.contains("network is unreachable") ||
+            logs.contains("no route to host") ||
+            logs.contains("network unreachable") -> ConnectionError.NoInternet
+
+            logs.contains("no such host") ||
+            (logs.contains("dns") && (logs.contains("fail") || logs.contains("error"))) -> ConnectionError.DnsFail
+
+            logs.contains("connection refused") -> ConnectionError.ServerUnreachable
+
+            logs.contains("[tun2socks]") &&
+            (logs.contains("error") || logs.contains("fail")) -> ConnectionError.Tun2socksFail
+
+            else -> ConnectionError.Unknown()
+        }
+    }
 
     fun dismissUpdate() = _state.update { it.copy(updateInfo = null, downloadProgress = null, downloadedApkPath = null) }
 
@@ -476,6 +549,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     override fun onCleared() {
         super.onCleared()
+        connectionTimeoutJob?.cancel()
         vpnService?.statusListener = null
         vpnService?.logListener    = null
         pendingLogLines.clear()

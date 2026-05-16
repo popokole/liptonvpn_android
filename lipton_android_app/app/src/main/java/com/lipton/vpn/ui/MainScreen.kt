@@ -47,11 +47,28 @@ fun MainScreen(
     val planesJob    = remember { mutableStateOf<Job?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
 
-    // Показываем Snackbar при ошибке подключения
     LaunchedEffect(state.errorMessage) {
         val msg = state.errorMessage ?: return@LaunchedEffect
         snackbarHostState.showSnackbar(message = msg, withDismissAction = true)
         viewModel.clearError()
+    }
+
+    state.connectionError?.let { error ->
+        ConnectionErrorSheet(
+            error          = error,
+            onDismiss      = { viewModel.clearConnectionError() },
+            onRetry        = {
+                viewModel.clearConnectionError()
+                viewModel.handleConnectToggle(activity)
+            },
+            onSwitchServer = { viewModel.switchToNextServer(activity) },
+            onHelp         = {
+                viewModel.clearConnectionError()
+                activity.startActivity(
+                    Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/liptonvpn_bot"))
+                )
+            },
+        )
     }
 
     // Auto-connect on launch
