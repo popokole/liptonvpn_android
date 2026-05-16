@@ -31,6 +31,8 @@ import com.lipton.vpn.ui.theme.*
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.lipton.vpn.ui.FaqScreen
+import com.lipton.vpn.ui.WhatsNewScreen
 
 @Composable
 fun MainScreen(
@@ -41,6 +43,7 @@ fun MainScreen(
     val lc = LocalLiptonColors.current
 
     var showSettings by remember { mutableStateOf(false) }
+    var showFaq      by remember { mutableStateOf(false) }
     var planesMode   by remember { mutableStateOf<PlaneMode?>(null) }
     val prevStatus   = remember { mutableStateOf(state.status) }
     val scope        = rememberCoroutineScope()
@@ -137,7 +140,16 @@ fun MainScreen(
                 )
             }
     ) {
-        if (state.loading) {
+        // What's New fullscreen overlay
+    if (!state.loading && state.showWhatsNew) {
+        WhatsNewScreen(
+            version   = com.lipton.vpn.BuildConfig.VERSION_NAME,
+            onDismiss = { viewModel.dismissWhatsNew() },
+        )
+        return@Box
+    }
+
+    if (state.loading) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = Green, modifier = Modifier.size(32.dp), strokeWidth = 2.5.dp)
             }
@@ -244,6 +256,53 @@ fun MainScreen(
                 )
             }
 
+            // Clipboard import banner
+            state.clipboardUrl?.let { url ->
+                Box(
+                    modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f))
+                        .clickable(onClick = { viewModel.dismissClipboard() }),
+                    contentAlignment = Alignment.BottomCenter,
+                ) {
+                    val lc2 = LocalLiptonColors.current
+                    Column(
+                        modifier = Modifier.fillMaxWidth()
+                            .clip(androidx.compose.foundation.shape.RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
+                            .background(lc2.bgSheet).padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Text("📋 Найдена ссылка на подписку", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = lc2.textPrimary)
+                        Text(url.take(60) + if (url.length > 60) "…" else "", fontSize = 12.sp, color = lc2.textSecondary)
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Box(
+                                modifier = Modifier.weight(1f)
+                                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+                                    .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(Green, Green3)))
+                                    .clickable { viewModel.importClipboardUrl(activity) }.padding(vertical = 13.dp),
+                                contentAlignment = Alignment.Center,
+                            ) { Text("Добавить", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black) }
+                            Box(
+                                modifier = Modifier.weight(1f)
+                                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+                                    .background(lc2.cardBg)
+                                    .border(1.dp, lc2.cardBorder, androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+                                    .clickable { viewModel.dismissClipboard() }.padding(vertical = 13.dp),
+                                contentAlignment = Alignment.Center,
+                            ) { Text("Пропустить", fontSize = 14.sp, color = lc2.textSecondary) }
+                        }
+                    }
+                }
+            }
+
+            if (showFaq) {
+                FaqScreen(
+                    onClose = { showFaq = false },
+                    onOpenTelegram = {
+                        showFaq = false
+                        activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/liptonvpn_bot")))
+                    },
+                )
+            }
+
             if (showSettings) {
                 SettingsPanel(
                     bypassRu             = state.bypassRu,
@@ -251,10 +310,14 @@ fun MainScreen(
                     autoConnectOnLaunch  = state.autoConnectOnLaunch,
                     logLines             = state.logLines,
                     trialUsed            = state.trialUsed,
+                    hapticEnabled        = state.hapticEnabled,
+                    themeMode            = state.themeMode,
                     onBypassRuChange     = { viewModel.setBypassRu(it) },
                     onAddDomain          = { viewModel.addBypassDomain(it) },
                     onRemoveDomain       = { viewModel.removeBypassDomain(it) },
                     onAutoConnectChange  = { viewModel.setAutoConnectOnLaunch(it) },
+                    onHapticChange       = { viewModel.setHapticEnabled(it) },
+                    onThemeChange        = { viewModel.setThemeMode(it) },
                     onClearLogs          = { viewModel.clearLogs() },
                     onGetTrial           = { mins -> viewModel.getTrialSubscription(mins) },
                     onBuyClick           = {
@@ -262,6 +325,7 @@ fun MainScreen(
                             Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/liptonvpn_bot"))
                         )
                     },
+                    onFaq                = { showSettings = false; showFaq = true },
                     onReset              = { viewModel.resetProfile(activity) },
                     onClose              = { showSettings = false },
                     onCheckUpdate        = { viewModel.manualCheckUpdate() },

@@ -1,5 +1,6 @@
 package com.lipton.vpn.ui.theme
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.Color
@@ -68,17 +69,44 @@ fun lightLiptonColors() = LiptonColors(
 
 val LocalLiptonColors = staticCompositionLocalOf { darkLiptonColors() }
 
+fun hackerLiptonColors() = LiptonColors(
+    bgDeep        = Color(0xFF000000),
+    bgCard        = Color(0xFF021005),
+    bgSheet       = Color(0xFF030D06),
+    cardBg        = Color(0x1234D058),
+    cardBorder    = Color(0x2634D058),
+    cardHover     = Color(0x1E34D058),
+    greenCard     = Color(0x0E34D058),
+    greenBorder   = Color(0x3034D058),
+    textPrimary   = Color(0xFF39FF14),   // neon green
+    textSecondary = Color(0xFF00CC44),
+    textTertiary  = Color(0x8000CC44),
+    isDark        = true,
+)
+
 // ─── App theme enum ───────────────────────────────────────────────────────────
 
-enum class AppTheme { SYSTEM, DARK, LIGHT }
+enum class AppTheme { SYSTEM, DARK, LIGHT, HACKER }
 
 // ─── LiptonTheme ─────────────────────────────────────────────────────────────
 
 @Composable
 fun LiptonTheme(appTheme: AppTheme = AppTheme.DARK, content: @Composable () -> Unit) {
-    val lc = darkLiptonColors()
-    val m3 = darkColorScheme(
+    val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val lc = when (appTheme) {
+        AppTheme.LIGHT  -> lightLiptonColors()
+        AppTheme.HACKER -> hackerLiptonColors()
+        AppTheme.SYSTEM -> if (systemDark) darkLiptonColors() else lightLiptonColors()
+        else            -> darkLiptonColors()
+    }
+    val m3 = if (lc.isDark) darkColorScheme(
         primary = Green, onPrimary = Color.Black,
+        primaryContainer = lc.greenCard, secondary = Green2,
+        background = lc.bgDeep, surface = lc.bgCard,
+        onBackground = lc.textPrimary, onSurface = lc.textPrimary,
+        error = Red, outline = lc.cardBorder,
+    ) else lightColorScheme(
+        primary = Green2, onPrimary = Color.White,
         primaryContainer = lc.greenCard, secondary = Green2,
         background = lc.bgDeep, surface = lc.bgCard,
         onBackground = lc.textPrimary, onSurface = lc.textPrimary,

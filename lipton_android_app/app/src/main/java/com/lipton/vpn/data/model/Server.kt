@@ -24,6 +24,7 @@ data class Server(
     val alterId: Int = 0,        // VMess
     val cipher: String = "auto", // VMess
     val ping: Long? = null,
+    val addedAt: Long = System.currentTimeMillis(),
 )
 
 fun Server.displayName(): String =

@@ -27,6 +27,7 @@ import com.lipton.vpn.data.model.Subscription
 import com.lipton.vpn.data.model.displayName
 import com.lipton.vpn.service.LiptonVpnService
 import com.lipton.vpn.ui.theme.AppTheme
+import com.lipton.vpn.util.HapticManager
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
@@ -67,6 +68,9 @@ data class UiState(
     val downloadedApkPath:   String?            = null,
     val errorMessage:        String?            = null,
     val connectionError:     ConnectionError?   = null,
+    val showWhatsNew:        Boolean            = false,
+    val clipboardUrl:        String?            = null,
+    val hapticEnabled:       Boolean            = true,
 )
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
@@ -109,6 +113,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         LiptonVpnService.VpnStatus.CONNECTING -> {
                             synchronized(recentConnectionLogs) { recentConnectionLogs.clear() }
                             startConnectionTimeout()
+                            if (state.value.hapticEnabled) HapticManager.connect(getApplication())
+                        }
+                        LiptonVpnService.VpnStatus.CONNECTED -> {
+                            connectionTimeoutJob?.cancel()
+                            if (state.value.hapticEnabled) HapticManager.success(getApplication())
+                        }
+                        LiptonVpnService.VpnStatus.ERROR -> {
+                            connectionTimeoutJob?.cancel()
+                            if (state.value.hapticEnabled) HapticManager.error(getApplication())
                         }
                         else -> connectionTimeoutJob?.cancel()
                     }
@@ -209,6 +222,47 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun dismissFirstLaunch() = _state.update { it.copy(isFirstLaunch = false) }
     fun clearError() = _state.update { it.copy(errorMessage = null) }
     fun clearConnectionError() = _state.update { it.copy(connectionError = null) }
+    fun dismissWhatsNew()      = _state.update { it.copy(showWhatsNew = false) }
+    fun dismissClipboard()     = _state.update { it.copy(clipboardUrl = null) }
+
+    fun checkClipboard(context: Context, text: String?) {
+        if (text.isNullOrBlank()) return
+        val url = text.trim()
+        if (!url.startsWith("https://sub.popokole.online/") && !url.startsWith("liptonvpn://")) return
+        viewModelScope.launch {
+            val last = settings.getClipboardLastImported()
+            if (last == url) return@launch
+            val already = settings.getSubscriptions().any { it.url == url || it.url == url.replaceFirst("liptonvpn://", "https://") }
+            if (already) return@launch
+            _state.update { it.copy(clipboardUrl = url) }
+        }
+    }
+
+    fun importClipboardUrl(context: Context) {
+        val url = state.value.clipboardUrl ?: return
+        _state.update { it.copy(clipboardUrl = null) }
+        viewModelScope.launch {
+            settings.setClipboardLastImported(url)
+            try { addSubscription(url) } catch (e: Exception) {
+                _state.update { it.copy(errorMessage = e.message) }
+            }
+        }
+    }
+
+    fun setHapticEnabled(enabled: Boolean) {
+        viewModelScope.launch { settings.setHapticEnabled(enabled) }
+        _state.update { it.copy(hapticEnabled = enabled) }
+    }
+
+    fun checkWhatsNew(currentVersion: String) {
+        viewModelScope.launch {
+            val last = settings.getLastSeenVersion()
+            if (last != currentVersion) {
+                _state.update { it.copy(showWhatsNew = true) }
+                settings.setLastSeenVersion(currentVersion)
+            }
+        }
+    }
 
     fun switchToNextServer(context: Context) {
         clearConnectionError()
@@ -326,6 +380,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val autoConnect     = settings.getAutoConnectOnLaunch()
             val trialUsed       = settings.getTrialAdded()
             val firstLaunchDone = settings.getFirstLaunchDone()
+            val hapticEnabled   = settings.getHapticEnabled()
 
             if (!firstLaunchDone) settings.setFirstLaunchDone(true)
 
@@ -351,6 +406,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     trialUsed           = trialUsed,
                     isFirstLaunch       = !firstLaunchDone,
                     logLines            = crashLines,
+                    hapticEnabled       = hapticEnabled,
                     loading             = false,
                 )
             }

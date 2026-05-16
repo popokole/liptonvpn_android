@@ -20,8 +20,11 @@ import com.lipton.vpn.data.SettingsManager
 import com.lipton.vpn.data.XrayConfigGenerator
 import com.lipton.vpn.data.model.Server
 import com.lipton.vpn.widget.LiptonWidget
+import com.lipton.vpn.service.LiptonNotificationHelper
 import kotlinx.coroutines.*
 import java.io.File
+
+private const val UNEXPECTED_DISCONNECT_NOTIF_ID = 4000
 
 class LiptonVpnService : VpnService() {
 
@@ -306,6 +309,8 @@ class LiptonVpnService : VpnService() {
                 if (status != VpnStatus.DISCONNECTING && status != VpnStatus.DISCONNECTED) {
                     Log.e(TAG, "tun2socks завершился неожиданно")
                     logListener?.invoke("[tun2socks] процесс завершился, VPN остановлен")
+                    LiptonNotificationHelper.ensureChannels(this@LiptonVpnService)
+                    LiptonNotificationHelper.showDisconnectNotification(this@LiptonVpnService)
                     isConnected = false
                     currentServerRemark = ""
                     notifyWidgets()
@@ -373,6 +378,9 @@ class LiptonVpnService : VpnService() {
             try {
                 xrayProcess?.waitFor()
                 if (status == VpnStatus.CONNECTED) {
+                    Log.e(TAG, "xray завершился неожиданно")
+                    LiptonNotificationHelper.ensureChannels(this@LiptonVpnService)
+                    LiptonNotificationHelper.showDisconnectNotification(this@LiptonVpnService)
                     isConnected = false
                     currentServerRemark = ""
                     notifyWidgets()

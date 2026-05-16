@@ -3,6 +3,8 @@ package com.lipton.vpn
 import android.Manifest
 import android.animation.ObjectAnimator
 import android.app.Activity
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -20,9 +22,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.lifecycleScope
+import com.lipton.vpn.service.LiptonNotificationHelper
 import com.lipton.vpn.ui.MainScreen
 import com.lipton.vpn.ui.OnboardingScreen
 import com.lipton.vpn.ui.theme.LiptonTheme
+import com.lipton.vpn.worker.ExpiryCheckWorker
+import com.lipton.vpn.worker.LogCleanupWorker
+import com.lipton.vpn.worker.TrafficCheckWorker
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -70,9 +76,21 @@ class MainActivity : ComponentActivity() {
         viewModel.bindService(this)
         handleDeepLink(intent)
 
+        // Schedule background workers
+        LiptonNotificationHelper.ensureChannels(this)
+        TrafficCheckWorker.schedule(this)
+        ExpiryCheckWorker.schedule(this)
+        LogCleanupWorker.schedule(this)
+
+        // Check What's New
+        viewModel.checkWhatsNew(BuildConfig.VERSION_NAME)
+
+        // Check clipboard for subscription URL
+        checkClipboard()
+
         setContent {
             val state by viewModel.state.collectAsState()
-            LiptonTheme {
+            LiptonTheme(appTheme = state.themeMode) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     if (!state.loading && state.isFirstLaunch) {
                         OnboardingScreen(onFinish = { viewModel.dismissFirstLaunch() })
@@ -91,6 +109,18 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleDeepLink(intent)
+        checkClipboard()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        checkClipboard()
+    }
+
+    private fun checkClipboard() {
+        val cm = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return
+        val text = cm.primaryClip?.getItemAt(0)?.text?.toString()
+        viewModel.checkClipboard(this, text)
     }
 
     private fun handleDeepLink(intent: Intent?) {

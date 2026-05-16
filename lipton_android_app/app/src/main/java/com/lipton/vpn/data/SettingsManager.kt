@@ -8,6 +8,7 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.lipton.vpn.data.model.Subscription
 import com.lipton.vpn.ui.theme.AppTheme
+import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -33,9 +34,14 @@ class SettingsManager(private val context: Context) {
         private val KEY_THEME             = stringPreferencesKey("app_theme")
         private val KEY_AUTO_CONNECT      = booleanPreferencesKey("auto_connect_on_launch")
         private val KEY_FIRST_LAUNCH_DONE = booleanPreferencesKey("first_launch_done")
+        private val KEY_LAST_SEEN_VERSION = stringPreferencesKey("last_seen_version")
+        private val KEY_NOTIF_SENT_FLAGS  = stringPreferencesKey("notif_sent_flags")
+        private val KEY_HAPTIC_ENABLED    = booleanPreferencesKey("haptic_enabled")
+        private val KEY_CLIPBOARD_LAST    = stringPreferencesKey("clipboard_last_imported")
 
         private val SUB_TYPE       = object : TypeToken<List<Subscription>>() {}.type
         private val STR_LIST_TYPE  = object : TypeToken<List<String>>() {}.type
+        private val MAP_BOOL_TYPE  = object : TypeToken<MutableMap<String, Boolean>>() {}.type
     }
 
     // ─── HWID ────────────────────────────────────────────────────────────────
@@ -156,6 +162,51 @@ class SettingsManager(private val context: Context) {
 
     suspend fun setFirstLaunchDone(v: Boolean) {
         context.dataStore.edit { it[KEY_FIRST_LAUNCH_DONE] = v }
+    }
+
+    // ─── Last seen version (What's New) ──────────────────────────────────────
+
+    suspend fun getLastSeenVersion(): String? = context.dataStore.data.first()[KEY_LAST_SEEN_VERSION]
+
+    suspend fun setLastSeenVersion(v: String) {
+        context.dataStore.edit { it[KEY_LAST_SEEN_VERSION] = v }
+    }
+
+    // ─── Notification sent flags ──────────────────────────────────────────────
+
+    suspend fun getNotifSentFlag(key: String): Boolean {
+        val json = context.dataStore.data.first()[KEY_NOTIF_SENT_FLAGS] ?: return false
+        return try {
+            val map: Map<String, Boolean> = gson.fromJson(json, MAP_BOOL_TYPE) ?: return false
+            map[key] == true
+        } catch (_: Exception) { false }
+    }
+
+    suspend fun setNotifSentFlag(key: String, value: Boolean) {
+        context.dataStore.edit { prefs ->
+            val current: MutableMap<String, Boolean> = try {
+                val json = prefs[KEY_NOTIF_SENT_FLAGS]
+                if (json != null) gson.fromJson(json, MAP_BOOL_TYPE) else mutableMapOf()
+            } catch (_: Exception) { mutableMapOf() }
+            current[key] = value
+            prefs[KEY_NOTIF_SENT_FLAGS] = gson.toJson(current)
+        }
+    }
+
+    // ─── Haptic ───────────────────────────────────────────────────────────────
+
+    suspend fun getHapticEnabled(): Boolean = context.dataStore.data.first()[KEY_HAPTIC_ENABLED] != false
+
+    suspend fun setHapticEnabled(v: Boolean) {
+        context.dataStore.edit { it[KEY_HAPTIC_ENABLED] = v }
+    }
+
+    // ─── Clipboard import ─────────────────────────────────────────────────────
+
+    suspend fun getClipboardLastImported(): String? = context.dataStore.data.first()[KEY_CLIPBOARD_LAST]
+
+    suspend fun setClipboardLastImported(v: String) {
+        context.dataStore.edit { it[KEY_CLIPBOARD_LAST] = v }
     }
 
     // ─── Reset ───────────────────────────────────────────────────────────────

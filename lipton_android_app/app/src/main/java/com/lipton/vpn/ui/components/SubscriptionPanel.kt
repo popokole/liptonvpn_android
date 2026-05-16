@@ -23,7 +23,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lipton.vpn.data.ErrorMapper
 import com.lipton.vpn.data.model.Subscription
+import com.lipton.vpn.ui.components.PremiumCard
 import com.lipton.vpn.data.model.UserInfo
 import com.lipton.vpn.data.model.toReadableBytes
 import com.lipton.vpn.data.model.usedBytes
@@ -80,6 +82,10 @@ fun SubscriptionPanel(
         // Subscription cards
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             subscriptions.forEach { sub ->
+                if (!sub.isTrial && (sub.userInfo.total > 0 || sub.userInfo.expire > 0)) {
+                    PremiumCard(subscription = sub, onBuyClick = onBuyClick)
+                    Spacer(Modifier.height(2.dp))
+                }
                 SubscriptionCard(
                     sub       = sub,
                     scope     = scope,
@@ -322,7 +328,7 @@ private fun SubscriptionCard(
                                 scope.launch {
                                     refreshing = true; refreshError = null
                                     try { onRefresh() }
-                                    catch (e: Exception) { refreshError = e.message ?: "Ошибка обновления" }
+                                    catch (e: Exception) { refreshError = ErrorMapper.mapSubscriptionError(e) }
                                     refreshing = false
                                 }
                             },

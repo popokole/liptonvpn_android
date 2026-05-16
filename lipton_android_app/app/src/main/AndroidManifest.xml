@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+          xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Сетевые разрешения -->
     <uses-permission android:name="android.permission.INTERNET" />
@@ -20,6 +21,9 @@
 
     <!-- Запуск при загрузке устройства -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <!-- Haptic feedback -->
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <application
         android:allowBackup="false"
@@ -127,6 +131,13 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_server_info" />
         </receiver>
+
+        <!-- WorkManager -->
+        <provider
+            android:name="androidx.work.impl.WorkManagerInitializer"
+            android:authorities="${applicationId}.workmanager-init"
+            android:exported="false"
+            tools:node="remove" />
 
         <!-- Boot receiver -->
         <receiver

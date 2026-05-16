@@ -33,13 +33,18 @@ fun SettingsPanel(
     autoConnectOnLaunch: Boolean,
     logLines:            List<String>,
     trialUsed:           Boolean,
+    hapticEnabled:       Boolean,
+    themeMode:           com.lipton.vpn.ui.theme.AppTheme,
     onBypassRuChange:    (Boolean) -> Unit,
     onAddDomain:         (String) -> Unit,
     onRemoveDomain:      (String) -> Unit,
     onAutoConnectChange: (Boolean) -> Unit,
+    onHapticChange:      (Boolean) -> Unit,
+    onThemeChange:       (com.lipton.vpn.ui.theme.AppTheme) -> Unit,
     onClearLogs:         () -> Unit,
     onGetTrial:          suspend (Int) -> Unit,
     onBuyClick:          () -> Unit,
+    onFaq:               () -> Unit,
     onReset:             () -> Unit,
     onClose:             () -> Unit,
     onCheckUpdate:       suspend () -> Boolean,
@@ -145,9 +150,58 @@ fun SettingsPanel(
                     )
                 }
 
+                // ── ИНТЕРФЕЙС ─────────────────────────────────────────────────
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SectionLabel("ИНТЕРФЕЙС")
+
+                    SettingsToggleRow(
+                        label    = "Тактильный отклик",
+                        subtitle = "Вибрация при подключении и ошибках",
+                        checked  = hapticEnabled,
+                        onChange = onHapticChange,
+                    )
+
+                    // Theme picker
+                    val lc2 = LocalLiptonColors.current
+                    Column(
+                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+                            .background(lc2.cardBg).border(1.dp, lc2.cardBorder, RoundedCornerShape(14.dp))
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text("Тема приложения", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = lc2.textPrimary)
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOf(
+                                com.lipton.vpn.ui.theme.AppTheme.DARK    to "Тёмная",
+                                com.lipton.vpn.ui.theme.AppTheme.LIGHT   to "Светлая",
+                                com.lipton.vpn.ui.theme.AppTheme.SYSTEM  to "Авто",
+                                com.lipton.vpn.ui.theme.AppTheme.HACKER  to "Hacker",
+                            ).forEach { (t, label) ->
+                                val active = themeMode == t
+                                Box(
+                                    modifier = Modifier.weight(1f).clip(RoundedCornerShape(8.dp))
+                                        .background(if (active) Green.copy(alpha = 0.2f) else Color.Transparent)
+                                        .border(1.dp, if (active) Green.copy(alpha = 0.5f) else lc2.cardBorder, RoundedCornerShape(8.dp))
+                                        .clickable { onThemeChange(t) }.padding(vertical = 8.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text(label, fontSize = 11.sp, fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (active) Green else lc2.textSecondary)
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // ── ДОПОЛНИТЕЛЬНО ─────────────────────────────────────────────
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     SectionLabel("ДОПОЛНИТЕЛЬНО")
+
+                    SettingsNavRow(
+                        label    = "FAQ — частые вопросы",
+                        subtitle = "Ответы на популярные вопросы",
+                        onClick  = { onFaq() },
+                    )
 
                     SettingsNavRow(
                         label    = "Логи подключения",

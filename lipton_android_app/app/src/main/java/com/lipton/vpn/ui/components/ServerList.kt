@@ -162,6 +162,15 @@ private fun ServerItem(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
+            val isNew = (System.currentTimeMillis() - server.addedAt) < 24 * 60 * 60 * 1000L
+            if (isNew && !isTrialOnly) {
+                Box(
+                    modifier = Modifier.clip(RoundedCornerShape(6.dp))
+                        .background(Green.copy(alpha = 0.18f)).padding(horizontal = 6.dp, vertical = 2.dp),
+                ) {
+                    Text("NEW", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Green, letterSpacing = 0.8.sp)
+                }
+            }
             PingBadge(ping = server.ping)
         }
     }

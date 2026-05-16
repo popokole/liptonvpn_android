@@ -103,8 +103,15 @@ class SubscriptionManager(private val settings: SettingsManager) {
         val idx = subs.indexOfFirst { it.id == subId }
         if (idx < 0) return
         val sub = subs[idx]
-        val (servers, userInfo) = fetchAndParse(sub.url)
-        subs[idx] = sub.copy(servers = servers, userInfo = userInfo, lastUpdated = System.currentTimeMillis())
+        val (newServers, userInfo) = fetchAndParse(sub.url)
+        // Preserve id and addedAt for servers that already existed (matched by address+port+protocol)
+        val preserved = newServers.map { newSrv ->
+            val existing = sub.servers.find {
+                it.address == newSrv.address && it.port == newSrv.port && it.protocol == newSrv.protocol
+            }
+            if (existing != null) newSrv.copy(id = existing.id, addedAt = existing.addedAt) else newSrv
+        }
+        subs[idx] = sub.copy(servers = preserved, userInfo = userInfo, lastUpdated = System.currentTimeMillis())
         settings.saveSubscriptions(subs)
     }
 
