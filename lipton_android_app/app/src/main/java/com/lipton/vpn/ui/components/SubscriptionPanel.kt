@@ -82,8 +82,9 @@ fun SubscriptionPanel(
             subscriptions.forEach { sub ->
                 SubscriptionCard(
                     sub       = sub,
+                    scope     = scope,
                     onRemove  = { scope.launch { onRemove(sub.id) } },
-                    onRefresh = { scope.launch { onRefresh(sub.id) } },
+                    onRefresh = { onRefresh(sub.id) },
                 )
             }
         }
@@ -233,11 +234,14 @@ private fun FirstLaunchCard(
 @Composable
 private fun SubscriptionCard(
     sub:      Subscription,
+    scope:    kotlinx.coroutines.CoroutineScope,
     onRemove: () -> Unit,
-    onRefresh: () -> Unit,
+    onRefresh: suspend () -> Unit,
 ) {
     val lc = LocalLiptonColors.current
-    var confirmDelete by remember { mutableStateOf(false) }
+    var confirmDelete  by remember { mutableStateOf(false) }
+    var refreshing     by remember { mutableStateOf(false) }
+    var refreshError   by remember { mutableStateOf<String?>(null) }
 
     Column(
         modifier = Modifier
@@ -311,11 +315,31 @@ private fun SubscriptionCard(
                     }
                 } else {
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        MiniIconButton(text = "↻", onClick = onRefresh)
+                        MiniIconButton(
+                            text    = if (refreshing) "…" else "↻",
+                            enabled = !refreshing,
+                            onClick = {
+                                scope.launch {
+                                    refreshing = true; refreshError = null
+                                    try { onRefresh() }
+                                    catch (e: Exception) { refreshError = e.message ?: "Ошибка обновления" }
+                                    refreshing = false
+                                }
+                            },
+                        )
                         MiniIconButton(text = "✕", danger = true, onClick = { confirmDelete = true })
                     }
                 }
             }
+        }
+
+        if (refreshError != null) {
+            Text(
+                text     = refreshError!!,
+                fontSize = 11.sp,
+                color    = Red,
+                modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 8.dp),
+            )
         }
 
         if (sub.isTrial) {
@@ -508,7 +532,7 @@ private fun AddSubForm(
 }
 
 @Composable
-private fun MiniIconButton(text: String, danger: Boolean = false, onClick: () -> Unit) {
+private fun MiniIconButton(text: String, danger: Boolean = false, enabled: Boolean = true, onClick: () -> Unit) {
     val lc = LocalLiptonColors.current
     Box(
         modifier = Modifier
@@ -516,10 +540,18 @@ private fun MiniIconButton(text: String, danger: Boolean = false, onClick: () ->
             .clip(RoundedCornerShape(8.dp))
             .background(if (danger) RedSoft else lc.cardBg)
             .border(1.dp, if (danger) Red.copy(alpha = 0.18f) else lc.cardBorder, RoundedCornerShape(8.dp))
-            .clickable(onClick = onClick),
+            .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text, fontSize = 13.sp, color = if (danger) Red else lc.textSecondary)
+        Text(
+            text,
+            fontSize = 13.sp,
+            color = when {
+                !enabled -> lc.textTertiary
+                danger   -> Red
+                else     -> lc.textSecondary
+            },
+        )
     }
 }
 
