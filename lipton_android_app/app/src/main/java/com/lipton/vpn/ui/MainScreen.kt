@@ -264,8 +264,8 @@ fun MainScreen(
             // Clipboard import banner
             AnimatedVisibility(
                 visible = state.clipboardUrl != null,
-                enter = fadeIn(tween(180)),
-                exit  = fadeOut(tween(150)),
+                enter = fadeIn(tween(180)) + slideInVertically(spring(stiffness = Spring.StiffnessMediumLow)) { it },
+                exit  = fadeOut(tween(150)) + slideOutVertically(tween(200)) { it },
                 modifier = Modifier.fillMaxSize(),
             ) {
             state.clipboardUrl?.let { url ->
@@ -277,10 +277,6 @@ fun MainScreen(
                     val lc2 = LocalLiptonColors.current
                     Column(
                         modifier = Modifier.fillMaxWidth()
-                            .animateEnterExit(
-                                enter = slideInVertically(spring(stiffness = Spring.StiffnessMediumLow)) { it },
-                                exit  = slideOutVertically(tween(200)) { it },
-                            )
                             .clip(androidx.compose.foundation.shape.RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
                             .background(lc2.bgSheet).padding(20.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
