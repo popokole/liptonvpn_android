@@ -21,3 +21,6 @@ captures/
 
 # NDK
 .cxx/
+
+# IDE tools
+.claude/
