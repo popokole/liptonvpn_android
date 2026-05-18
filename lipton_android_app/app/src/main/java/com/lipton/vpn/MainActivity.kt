@@ -126,9 +126,11 @@ class MainActivity : ComponentActivity() {
     private fun handleDeepLink(intent: Intent?) {
         val uri: Uri = intent?.data ?: return
         if (uri.scheme != "liptonvpn") return
-        if (uri.host != "sub.popokole.online") return
-        // Восстанавливаем HTTPS URL с путём и query-параметрами
-        val url = uri.toString().replaceFirst("liptonvpn://", "https://")
+        val url = when (uri.host) {
+            "add" -> uri.path?.removePrefix("/") ?: return  // liptonvpn://add/https://...
+            else  -> uri.toString().replaceFirst("liptonvpn://", "https://")  // legacy
+        }
+        if (url.isBlank()) return
         lifecycleScope.launch { viewModel.addSubscription(url) }
     }
 
