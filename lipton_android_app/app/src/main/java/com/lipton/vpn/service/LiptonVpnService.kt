@@ -223,10 +223,12 @@ class LiptonVpnService : VpnService() {
     }
 
     private fun cleanupVpn() {
-        // Close VPN interface first — immediately releases the system VPN key icon
+        // Kill tun2socks first and wait for it to die — it holds a dup'd TUN fd.
+        // Only after the process exits are its fds closed, allowing vpnInterface.close()
+        // to release the last reference to the TUN device and remove the system key icon.
+        stopTun2SocksProcess()
         try { vpnInterface?.close() } catch (_: Exception) {}
         vpnInterface = null
-        stopTun2SocksProcess()
         stopXrayProcess()
         try { xrayLogReader?.close() } catch (_: Exception) {}
         xrayLogReader = null
@@ -244,6 +246,8 @@ class LiptonVpnService : VpnService() {
         if (pid > 0) {
             try { nativeKill(pid) } catch (_: Exception) {}
             tun2socksPid = 0
+            // Wait for the process to fully exit so the kernel closes its copy of the TUN fd
+            try { Thread.sleep(200) } catch (_: InterruptedException) {}
         }
         try { tun2socksPipe?.close() } catch (_: Exception) {}
         tun2socksPipe = null
