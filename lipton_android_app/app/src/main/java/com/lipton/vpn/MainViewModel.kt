@@ -514,6 +514,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     // ─── Subscriptions ────────────────────────────────────────────────────────
 
+    fun showError(message: String?) {
+        _state.update { it.copy(errorMessage = message) }
+    }
+
     suspend fun addSubscription(url: String) {
         val existing = settings.getSubscriptions()
         val hasNonTrial = existing.any { !it.isTrial }

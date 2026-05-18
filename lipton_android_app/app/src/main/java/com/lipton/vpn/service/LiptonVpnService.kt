@@ -223,12 +223,13 @@ class LiptonVpnService : VpnService() {
     }
 
     private fun cleanupVpn() {
+        // Close VPN interface first — immediately releases the system VPN key icon
+        try { vpnInterface?.close() } catch (_: Exception) {}
+        vpnInterface = null
         stopTun2SocksProcess()
         stopXrayProcess()
         try { xrayLogReader?.close() } catch (_: Exception) {}
         xrayLogReader = null
-        vpnInterface?.close()
-        vpnInterface = null
     }
 
     private fun stopXrayProcess() {

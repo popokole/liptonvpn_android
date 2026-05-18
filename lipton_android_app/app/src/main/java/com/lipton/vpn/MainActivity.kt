@@ -138,7 +138,10 @@ class MainActivity : ComponentActivity() {
             else  -> uri.toString().replaceFirst("liptonvpn://", "https://")  // legacy
         }
         if (url.isBlank()) return
-        lifecycleScope.launch { viewModel.addSubscription(url) }
+        lifecycleScope.launch {
+            try { viewModel.addSubscription(url) }
+            catch (e: Exception) { viewModel.showError(e.message) }
+        }
     }
 
     override fun onDestroy() {

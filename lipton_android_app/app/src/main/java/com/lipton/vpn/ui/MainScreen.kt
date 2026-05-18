@@ -14,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -140,14 +141,18 @@ fun MainScreen(
                 )
             }
     ) {
-        // What's New fullscreen overlay
-    if (!state.loading && state.showWhatsNew) {
-        WhatsNewScreen(
-            version   = com.lipton.vpn.BuildConfig.VERSION_NAME,
-            onDismiss = { viewModel.dismissWhatsNew() },
-        )
-        return@Box
-    }
+        // What's New fullscreen overlay — slides in on top, no main screen transition
+        AnimatedVisibility(
+            visible = !state.loading && state.showWhatsNew,
+            enter = slideInVertically(spring(stiffness = Spring.StiffnessMediumLow)) { it } + fadeIn(tween(220)),
+            exit  = slideOutVertically(tween(200)) { it } + fadeOut(tween(150)),
+            modifier = Modifier.fillMaxSize().zIndex(10f),
+        ) {
+            WhatsNewScreen(
+                version   = com.lipton.vpn.BuildConfig.VERSION_NAME,
+                onDismiss = { viewModel.dismissWhatsNew() },
+            )
+        }
 
     if (state.loading) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -257,6 +262,12 @@ fun MainScreen(
             }
 
             // Clipboard import banner
+            AnimatedVisibility(
+                visible = state.clipboardUrl != null,
+                enter = fadeIn(tween(180)),
+                exit  = fadeOut(tween(150)),
+                modifier = Modifier.fillMaxSize(),
+            ) {
             state.clipboardUrl?.let { url ->
                 Box(
                     modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f))
@@ -266,6 +277,10 @@ fun MainScreen(
                     val lc2 = LocalLiptonColors.current
                     Column(
                         modifier = Modifier.fillMaxWidth()
+                            .animateEnterExit(
+                                enter = slideInVertically(spring(stiffness = Spring.StiffnessMediumLow)) { it },
+                                exit  = slideOutVertically(tween(200)) { it },
+                            )
                             .clip(androidx.compose.foundation.shape.RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
                             .background(lc2.bgSheet).padding(20.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -291,6 +306,7 @@ fun MainScreen(
                         }
                     }
                 }
+            }
             }
 
             if (showFaq) {
