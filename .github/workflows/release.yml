@@ -51,11 +51,16 @@ jobs:
         id: version
         run: echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
 
+      - name: Rename APK
+        run: |
+          mv lipton_android_app/app/build/outputs/apk/release/app-release.apk \
+             lipton_android_app/app/build/outputs/apk/release/LiptonVPN-v${{ steps.version.outputs.version }}.apk
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           name: LiptonVPN v${{ steps.version.outputs.version }}
-          files: lipton_android_app/app/build/outputs/apk/release/*.apk
+          files: lipton_android_app/app/build/outputs/apk/release/LiptonVPN-v${{ steps.version.outputs.version }}.apk
           generate_release_notes: false
           body: |
             ## LiptonVPN v${{ steps.version.outputs.version }}
