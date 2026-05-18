@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <shortcut
+        android:shortcutId="toggle_vpn"
+        android:enabled="true"
+        android:icon="@drawable/ic_notif"
+        android:shortcutShortLabel="@string/shortcut_toggle_label"
+        android:shortcutLongLabel="@string/shortcut_toggle_label"
+        android:shortcutDisabledMessage="@string/shortcut_toggle_label">
+        <intent
+            android:action="com.lipton.vpn.SHORTCUT_TOGGLE"
+            android:targetPackage="com.lipton.vpn"
+            android:targetClass="com.lipton.vpn.MainActivity" />
+        <categories android:name="android.shortcut.conversation" />
+    </shortcut>
+
+</shortcuts>

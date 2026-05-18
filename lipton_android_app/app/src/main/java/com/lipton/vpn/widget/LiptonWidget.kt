@@ -30,6 +30,8 @@ class LiptonWidget : AppWidgetProvider() {
                 if (connected) "Подключено" else "Отключено")
             views.setTextViewText(R.id.widget_btn_label,
                 if (connected) "Отключить" else "Подключить")
+            views.setInt(R.id.widget_btn, "setBackgroundColor",
+                if (connected) 0xFF34D058.toInt() else 0xFFE53935.toInt())
             views.setTextColor(R.id.widget_status,
                 if (connected) 0xFF34D058.toInt() else 0xFFEDFFF2.toInt())
 

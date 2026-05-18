@@ -75,6 +75,7 @@ class MainActivity : ComponentActivity() {
         viewModel.setPermissionLauncher(vpnPermissionLauncher)
         viewModel.bindService(this)
         handleDeepLink(intent)
+        handleShortcut(intent)
 
         // Schedule background workers
         LiptonNotificationHelper.ensureChannels(this)
@@ -109,6 +110,7 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleDeepLink(intent)
+        handleShortcut(intent)
         checkClipboard()
     }
 
@@ -121,6 +123,11 @@ class MainActivity : ComponentActivity() {
         val cm = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return
         val text = cm.primaryClip?.getItemAt(0)?.text?.toString()
         viewModel.checkClipboard(this, text)
+    }
+
+    private fun handleShortcut(intent: Intent?) {
+        if (intent?.action != "com.lipton.vpn.SHORTCUT_TOGGLE") return
+        viewModel.handleConnectToggle(this)
     }
 
     private fun handleDeepLink(intent: Intent?) {

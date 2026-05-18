@@ -514,7 +514,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     // ─── Subscriptions ────────────────────────────────────────────────────────
 
-    suspend fun addSubscription(url: String)            = subManager.add(url)
+    suspend fun addSubscription(url: String) {
+        val existing = settings.getSubscriptions()
+        val hasNonTrial = existing.any { !it.isTrial }
+        if (hasNonTrial) {
+            throw Exception("Можно добавить только одну платную подписку. Сначала удалите текущую подписку в настройках.")
+        }
+        subManager.add(url)
+    }
     suspend fun removeSubscription(subId: String)       = subManager.remove(subId)
     suspend fun refreshSubscription(subId: String)      = subManager.refresh(subId)
 

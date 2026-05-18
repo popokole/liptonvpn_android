@@ -160,8 +160,8 @@ fun MainScreen(
                 // Баннер обновления — прямо под шапкой, над кнопкой подключения
                 AnimatedVisibility(
                     visible = state.updateInfo != null,
-                    enter = fadeIn(tween(300)) + expandVertically(tween(300)),
-                    exit  = fadeOut(tween(200)) + shrinkVertically(tween(200)),
+                    enter = fadeIn(spring(stiffness = Spring.StiffnessMediumLow)) + expandVertically(spring(stiffness = Spring.StiffnessMediumLow)),
+                    exit  = fadeOut(tween(180)) + shrinkVertically(tween(220)),
                 ) {
                     state.updateInfo?.let { _ ->
                         Column {
