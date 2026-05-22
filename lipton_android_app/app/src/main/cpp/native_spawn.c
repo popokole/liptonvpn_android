@@ -117,7 +117,9 @@ JNIEXPORT void JNICALL
 Java_com_lipton_vpn_service_LiptonVpnService_nativeKill(
         JNIEnv *env, jobject thiz, jint pid) {
     if (pid > 0) {
-        kill((pid_t) pid, SIGTERM);
-        waitpid((pid_t) pid, NULL, WNOHANG);
+        kill((pid_t) pid, SIGKILL);
+        /* Blocking wait — reaps the zombie so the kernel closes all its fds immediately.
+           Called on Dispatchers.IO so blocking here is fine. */
+        waitpid((pid_t) pid, NULL, 0);
     }
 }

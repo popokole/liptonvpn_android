@@ -244,10 +244,10 @@ class LiptonVpnService : VpnService() {
     private fun stopTun2SocksProcess() {
         val pid = tun2socksPid
         if (pid > 0) {
+            // SIGKILL + blocking waitpid() in native — returns only after process is fully dead
+            // and the kernel has closed all its fds (including the dup'd TUN fd).
             try { nativeKill(pid) } catch (_: Exception) {}
             tun2socksPid = 0
-            // Wait for the process to fully exit so the kernel closes its copy of the TUN fd
-            try { Thread.sleep(200) } catch (_: InterruptedException) {}
         }
         try { tun2socksPipe?.close() } catch (_: Exception) {}
         tun2socksPipe = null
@@ -286,6 +286,11 @@ class LiptonVpnService : VpnService() {
             "-proxy",  "socks5://127.0.0.1:$socksPort",
             "-loglevel", "info",
         ))
+
+        // Close our copy of tunFd — tun2socks has its own inherited copy after fork().
+        // If we don't close it, the TUN device stays open even after tun2socks dies and
+        // vpnInterface.close() is called, so the system VPN key icon never disappears.
+        try { ParcelFileDescriptor.adoptFd(tunFd).close() } catch (_: Exception) {}
 
         if (result == null || result[0] <= 0) {
             Log.e(TAG, "tun2socks: nativeSpawn вернул null или pid<=0")
