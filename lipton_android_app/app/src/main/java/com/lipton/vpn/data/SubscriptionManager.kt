@@ -204,24 +204,43 @@ class SubscriptionManager(private val settings: SettingsManager) {
         else -> null
     }
 
-    private fun parseVless(uri: String): Server? = runCatching {
-        val u = java.net.URI(uri)
-        val params = (u.query ?: "").split("&").associate {
-            val (k, v) = it.split("=").let { kv ->
-                kv.getOrElse(0) { "" } to kv.getOrElse(1) { "" }
+    // Splits "key=val=with=equals" on the FIRST '=' only, then URL-decodes the value.
+    // Using split("=") would corrupt base64 values (e.g. Reality pbk with '=' padding).
+    private fun parseQueryParams(rawQuery: String?): Map<String, String> =
+        (rawQuery ?: "").split("&").filter { it.isNotEmpty() }.associate { param ->
+            val eq = param.indexOf('=')
+            if (eq < 0) param to ""
+            else {
+                val key = param.substring(0, eq)
+                val raw = param.substring(eq + 1)
+                key to try { java.net.URLDecoder.decode(raw, "UTF-8") } catch (_: Exception) { raw }
             }
-            k to java.net.URLDecoder.decode(v, "UTF-8")
         }
+
+    private fun parseVless(uri: String): Server? = runCatching {
+        // Extract remark from fragment manually — java.net.URI throws on unencoded
+        // special chars (spaces, CJK, emoji) that VPN panels put in remarks.
+        val hashIdx = uri.lastIndexOf('#')
+        val cleanUri = if (hashIdx >= 0) uri.substring(0, hashIdx) else uri
+        val remark = if (hashIdx >= 0)
+            try { java.net.URLDecoder.decode(uri.substring(hashIdx + 1), "UTF-8") }
+            catch (_: Exception) { uri.substring(hashIdx + 1) }
+        else ""
+
+        val u = java.net.URI(cleanUri)
+        val params = parseQueryParams(u.rawQuery)
+        val host = u.host ?: return@runCatching null
+
         Server(
             protocol    = "vless",
-            address     = u.host,
+            address     = host,
             port        = u.port.takeIf { it > 0 } ?: 443,
             uuid        = u.userInfo ?: "",
-            remark      = u.fragment?.let { java.net.URLDecoder.decode(it, "UTF-8") } ?: u.host,
+            remark      = remark.ifBlank { host },
             network     = params["type"] ?: "tcp",
             security    = params["security"] ?: "none",
             flow        = params["flow"] ?: "",
-            sni         = params["sni"] ?: u.host,
+            sni         = params["sni"] ?: host,
             pbk         = params["pbk"] ?: "",
             sid         = params["sid"] ?: "",
             fp          = params["fp"] ?: "chrome",
@@ -254,20 +273,26 @@ class SubscriptionManager(private val settings: SettingsManager) {
     }.getOrNull()
 
     private fun parseTrojan(uri: String): Server? = runCatching {
-        val u = java.net.URI(uri)
-        val params = (u.query ?: "").split("&").associate {
-            val parts = it.split("=")
-            parts.getOrElse(0) { "" } to java.net.URLDecoder.decode(parts.getOrElse(1) { "" }, "UTF-8")
-        }
+        val hashIdx = uri.lastIndexOf('#')
+        val cleanUri = if (hashIdx >= 0) uri.substring(0, hashIdx) else uri
+        val remark = if (hashIdx >= 0)
+            try { java.net.URLDecoder.decode(uri.substring(hashIdx + 1), "UTF-8") }
+            catch (_: Exception) { uri.substring(hashIdx + 1) }
+        else ""
+
+        val u = java.net.URI(cleanUri)
+        val params = parseQueryParams(u.rawQuery)
+        val host = u.host ?: return@runCatching null
+
         Server(
             protocol   = "trojan",
-            address    = u.host,
+            address    = host,
             port       = u.port.takeIf { it > 0 } ?: 443,
             password   = u.userInfo ?: "",
-            remark     = u.fragment?.let { java.net.URLDecoder.decode(it, "UTF-8") } ?: u.host,
+            remark     = remark.ifBlank { host },
             network    = params["type"] ?: "tcp",
             security   = params["security"] ?: "tls",
-            sni        = params["sni"] ?: u.host,
+            sni        = params["sni"] ?: host,
             fp         = params["fp"] ?: "chrome",
             path       = params["path"] ?: "/",
             host       = params["host"] ?: "",

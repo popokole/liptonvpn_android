@@ -271,6 +271,7 @@ class LiptonVpnService : VpnService() {
         if (!bin.exists()) {
             Log.w(TAG, "libtun2socks.so не найден")
             logListener?.invoke("[tun2socks] ОШИБКА: libtun2socks.so не найден в $nativeDir")
+            try { ParcelFileDescriptor.adoptFd(tunFd).close() } catch (_: Exception) {}
             return
         }
         bin.setExecutable(true, true)
