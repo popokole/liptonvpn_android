@@ -229,8 +229,8 @@ class SubscriptionManager(private val settings: SettingsManager) {
             host        = params["host"] ?: "",
             alpn        = params["alpn"] ?: "",
             serviceName = params["serviceName"] ?: "",
-            mode        = params["mode"] ?: "",
-            headerType  = params["headerType"] ?: "",
+            mode        = params["mode"]?.ifBlank { null },
+            headerType  = params["headerType"]?.ifBlank { null },
         )
     }.getOrNull()
 
@@ -271,8 +271,8 @@ class SubscriptionManager(private val settings: SettingsManager) {
             fp         = params["fp"] ?: "chrome",
             path       = params["path"] ?: "/",
             host       = params["host"] ?: "",
-            mode       = params["mode"] ?: "",
-            headerType = params["headerType"] ?: "",
+            mode       = params["mode"]?.ifBlank { null },
+            headerType = params["headerType"]?.ifBlank { null },
         )
     }.getOrNull()
 }

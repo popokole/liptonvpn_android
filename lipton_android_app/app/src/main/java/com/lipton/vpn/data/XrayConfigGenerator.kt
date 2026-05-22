@@ -195,7 +195,7 @@ object XrayConfigGenerator {
                 val settingsKey = if (s.network == "xhttp") "xhttpSettings" else "splithttpSettings"
                 val xhttpMap = mutableMapOf<String, Any>("path" to s.path)
                 if (s.host.isNotBlank()) xhttpMap["host"] = s.host
-                if (s.mode.isNotBlank()) xhttpMap["mode"] = s.mode
+                if (s.mode?.isNotBlank() == true) xhttpMap["mode"] = s.mode
                 ss[settingsKey] = xhttpMap
             }
             "tcp" -> if (s.headerType == "http") {

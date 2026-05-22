@@ -31,11 +31,22 @@ private val FEATURES_1_1 = listOf(
     WhatsNewFeature("📳", "Haptic feedback", "Тактильный отклик при подключении и ошибках"),
 )
 
+private val FEATURES_1_1_6 = listOf(
+    WhatsNewFeature("🛡️", "Обход глушилок", "Добавлена поддержка протоколов XHTTP и SplitHTTP — стабильная работа даже при активных блокировках и ТСПУ"),
+    WhatsNewFeature("🌐", "Новые транспорты", "Клиент теперь поддерживает все современные транспорты: xhttp, splithttp, TCP с HTTP-обфускацией"),
+    WhatsNewFeature("📺", "YouTube и стриминг", "Оптимизирован MTU туннеля — видео и стриминг работают без буферизации"),
+)
+
+private fun featuresForVersion(version: String) = when {
+    version.startsWith("1.1.6") || version > "1.1.5" -> FEATURES_1_1_6
+    else -> FEATURES_1_1
+}
+
 @Composable
 fun WhatsNewScreen(version: String, onDismiss: () -> Unit) {
     val lc = LocalLiptonColors.current
     var page by remember { mutableIntStateOf(0) }
-    val features = FEATURES_1_1
+    val features = featuresForVersion(version)
 
     Box(
         modifier = Modifier.fillMaxSize()

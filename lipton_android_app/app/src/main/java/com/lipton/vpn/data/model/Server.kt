@@ -23,8 +23,8 @@ data class Server(
     val serviceName: String = "",
     val alterId: Int = 0,        // VMess
     val cipher: String = "auto", // VMess
-    val mode: String = "",       // xhttp: auto | stream-up | packet-up
-    val headerType: String = "", // tcp: http (obfuscation)
+    val mode: String? = null,       // xhttp: auto | stream-up | packet-up
+    val headerType: String? = null, // tcp: http (obfuscation)
     val ping: Long? = null,
     val addedAt: Long = System.currentTimeMillis(),
 )
