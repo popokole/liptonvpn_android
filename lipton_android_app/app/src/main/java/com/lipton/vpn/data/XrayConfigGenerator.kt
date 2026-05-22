@@ -190,7 +190,25 @@ object XrayConfigGenerator {
             )
             "grpc" -> ss["grpcSettings"] = mapOf("serviceName" to s.serviceName)
             "h2"   -> ss["httpSettings"] = mapOf("path" to s.path, "host" to if (s.host.isNotBlank()) listOf(s.host) else emptyList<String>())
-            "httpupgrade" -> ss["httpupgradeSettings"] = mapOf("path" to s.path, "host" to (s.host.ifBlank { s.sni }))
+            "httpupgrade" -> ss["httpupgradeSettings"] = mapOf("path" to s.path, "host" to s.host.ifBlank { s.sni })
+            "xhttp", "splithttp" -> {
+                val settingsKey = if (s.network == "xhttp") "xhttpSettings" else "splithttpSettings"
+                val xhttpMap = mutableMapOf<String, Any>("path" to s.path)
+                if (s.host.isNotBlank()) xhttpMap["host"] = s.host
+                if (s.mode.isNotBlank()) xhttpMap["mode"] = s.mode
+                ss[settingsKey] = xhttpMap
+            }
+            "tcp" -> if (s.headerType == "http") {
+                val headers = if (s.host.isNotBlank())
+                    mapOf("Host" to listOf(s.host))
+                else emptyMap<String, List<String>>()
+                ss["tcpSettings"] = mapOf(
+                    "header" to mapOf(
+                        "type" to "http",
+                        "request" to mapOf("path" to listOf(s.path), "headers" to headers),
+                    ),
+                )
+            }
         }
 
         return ss

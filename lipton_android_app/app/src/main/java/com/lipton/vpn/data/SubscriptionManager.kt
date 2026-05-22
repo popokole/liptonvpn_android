@@ -213,22 +213,24 @@ class SubscriptionManager(private val settings: SettingsManager) {
             k to java.net.URLDecoder.decode(v, "UTF-8")
         }
         Server(
-            protocol  = "vless",
-            address   = u.host,
-            port      = u.port.takeIf { it > 0 } ?: 443,
-            uuid      = u.userInfo ?: "",
-            remark    = u.fragment?.let { java.net.URLDecoder.decode(it, "UTF-8") } ?: u.host,
-            network   = params["type"] ?: "tcp",
-            security  = params["security"] ?: "none",
-            flow      = params["flow"] ?: "",
-            sni       = params["sni"] ?: u.host,
-            pbk       = params["pbk"] ?: "",
-            sid       = params["sid"] ?: "",
-            fp        = params["fp"] ?: "chrome",
-            path      = params["path"] ?: "/",
-            host      = params["host"] ?: "",
-            alpn      = params["alpn"] ?: "",
+            protocol    = "vless",
+            address     = u.host,
+            port        = u.port.takeIf { it > 0 } ?: 443,
+            uuid        = u.userInfo ?: "",
+            remark      = u.fragment?.let { java.net.URLDecoder.decode(it, "UTF-8") } ?: u.host,
+            network     = params["type"] ?: "tcp",
+            security    = params["security"] ?: "none",
+            flow        = params["flow"] ?: "",
+            sni         = params["sni"] ?: u.host,
+            pbk         = params["pbk"] ?: "",
+            sid         = params["sid"] ?: "",
+            fp          = params["fp"] ?: "chrome",
+            path        = params["path"] ?: "/",
+            host        = params["host"] ?: "",
+            alpn        = params["alpn"] ?: "",
             serviceName = params["serviceName"] ?: "",
+            mode        = params["mode"] ?: "",
+            headerType  = params["headerType"] ?: "",
         )
     }.getOrNull()
 
@@ -258,16 +260,19 @@ class SubscriptionManager(private val settings: SettingsManager) {
             parts.getOrElse(0) { "" } to java.net.URLDecoder.decode(parts.getOrElse(1) { "" }, "UTF-8")
         }
         Server(
-            protocol  = "trojan",
-            address   = u.host,
-            port      = u.port.takeIf { it > 0 } ?: 443,
-            password  = u.userInfo ?: "",
-            remark    = u.fragment?.let { java.net.URLDecoder.decode(it, "UTF-8") } ?: u.host,
-            network   = params["type"] ?: "tcp",
-            security  = params["security"] ?: "tls",
-            sni       = params["sni"] ?: u.host,
-            path      = params["path"] ?: "/",
-            host      = params["host"] ?: "",
+            protocol   = "trojan",
+            address    = u.host,
+            port       = u.port.takeIf { it > 0 } ?: 443,
+            password   = u.userInfo ?: "",
+            remark     = u.fragment?.let { java.net.URLDecoder.decode(it, "UTF-8") } ?: u.host,
+            network    = params["type"] ?: "tcp",
+            security   = params["security"] ?: "tls",
+            sni        = params["sni"] ?: u.host,
+            fp         = params["fp"] ?: "chrome",
+            path       = params["path"] ?: "/",
+            host       = params["host"] ?: "",
+            mode       = params["mode"] ?: "",
+            headerType = params["headerType"] ?: "",
         )
     }.getOrNull()
 }

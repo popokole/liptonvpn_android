@@ -199,7 +199,7 @@ class LiptonVpnService : VpnService() {
             .addDnsServer("8.8.8.8")
             .addDnsServer("1.1.1.1")
             .addDnsServer("8.8.4.4")
-            .setMtu(1500)
+            .setMtu(1280)
             .also { builder ->
                 // Не маршрутизируем адрес сервера через VPN
                 currentServer?.let { s ->
