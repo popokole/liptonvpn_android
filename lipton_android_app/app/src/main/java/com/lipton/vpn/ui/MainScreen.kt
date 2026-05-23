@@ -104,7 +104,7 @@ fun MainScreen(
                 planesJob.value?.cancel()
                 planesJob.value = scope.launch {
                     planesMode = PlaneMode.DISCONNECT
-                    delay(2000)
+                    delay(5500)
                     planesMode = null
                 }
             }

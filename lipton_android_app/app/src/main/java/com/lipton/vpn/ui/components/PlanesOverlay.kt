@@ -7,23 +7,19 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
-import androidx.compose.ui.graphics.drawscope.rotate
-import androidx.compose.ui.graphics.drawscope.scale
-import androidx.compose.ui.graphics.drawscope.translate
-import androidx.compose.ui.unit.dp
-import com.lipton.vpn.ui.theme.Green
-import com.lipton.vpn.ui.theme.Red
+import androidx.compose.ui.graphics.drawscope.*
+import androidx.compose.ui.platform.LocalDensity
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 enum class PlaneMode { CONNECT, DISCONNECT }
 
+private val EASE = CubicBezierEasing(0.22f, 0.61f, 0.36f, 1f)
+
 private data class PlaneConfig(
-    val leftFrac: Float,
-    val topFrac: Float,
-    val delayMs: Long,
-    val sizeDp: Float,
+    val leftFrac: Float, val topFrac: Float,
+    val delayMs: Long,   val sizeDp: Float,
     val txDp: Float,
 )
 
@@ -36,117 +32,293 @@ private val PLANES = listOf(
     PlaneConfig(0.73f, 0.44f, 180L, 20f,  42f),
 )
 
+// 8 blast directions in dp, matching the HTML exactly
+private val BLAST_DP = listOf(
+    Offset(  0f, -55f), Offset( 39f, -39f),
+    Offset( 55f,   0f), Offset( 39f,  39f),
+    Offset(  0f,  55f), Offset(-39f,  39f),
+    Offset(-55f,   0f), Offset(-39f, -39f),
+)
+
+private data class SparkDef(
+    val cx: Float, val cy: Float,   // absolute px in overlay
+    val dx: Float, val dy: Float,   // destination offset px
+    val sizePx: Float,
+    val uid: Long,
+)
+
 @Composable
 fun PlanesOverlay(mode: PlaneMode?, modifier: Modifier = Modifier) {
-    if (mode != null) {
-        Box(modifier = modifier.fillMaxSize()) {
-            PLANES.forEachIndexed { i, cfg ->
-                key(mode, i) {
-                    PlaneParticle(cfg = cfg, mode = mode)
-                }
+    key(mode) {
+        if (mode == null) return@key
+        val sparks  = remember { mutableStateListOf<SparkDef>() }
+        val density = LocalDensity.current
+
+        BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+            val wPx = with(density) { maxWidth.toPx() }
+            val hPx = with(density) { maxHeight.toPx() }
+
+            PLANES.forEachIndexed { idx, cfg ->
+                PlaneParticle(
+                    cfg = cfg, mode = mode,
+                    wPx = wPx, hPx = hPx,
+                    onSpark = if (mode == PlaneMode.DISCONNECT) { cx, cy ->
+                        val szPx = with(density) { (if (idx % 2 == 0) 5f else 4f).dp.toPx() }
+                        val uid0 = System.nanoTime() + idx.toLong() * 100
+                        BLAST_DP.forEachIndexed { j, dir ->
+                            sparks += SparkDef(
+                                cx = cx, cy = cy,
+                                dx = with(density) { dir.x.dp.toPx() },
+                                dy = with(density) { dir.y.dp.toPx() },
+                                sizePx = szPx,
+                                uid = uid0 + j,
+                            )
+                        }
+                    } else null,
+                )
+            }
+
+            sparks.forEach { spark ->
+                key(spark.uid) { SparkParticle(spark) }
             }
         }
     }
 }
 
+// ─── Plane particle ───────────────────────────────────────────────────────────
+
 @Composable
-private fun PlaneParticle(cfg: PlaneConfig, mode: PlaneMode) {
-    val alpha = remember { Animatable(0f) }
-    val tx    = remember { Animatable(0f) }
-    val ty    = remember { Animatable(0f) }
-    val rot   = remember { Animatable(if (mode == PlaneMode.CONNECT) -40f else -20f) }
-    val scl   = remember { Animatable(0.1f) }
+private fun PlaneParticle(
+    cfg: PlaneConfig,
+    mode: PlaneMode,
+    wPx: Float,
+    hPx: Float,
+    onSpark: ((cx: Float, cy: Float) -> Unit)?,
+) {
+    val alpha   = remember { Animatable(0f) }
+    val txDp    = remember { Animatable(0f) }
+    val tyDp    = remember { Animatable(0f) }
+    val rotDeg  = remember { Animatable(-40f) }
+    val scl     = remember { Animatable(if (mode == PlaneMode.CONNECT) 0.1f else 0.2f) }
+    val glowDp  = remember { Animatable(0f) }
+    val colorF  = remember { Animatable(0f) }   // 0=green 1=orange 2=red 3=darkRed
+    val density = LocalDensity.current
 
     LaunchedEffect(cfg, mode) {
         delay(cfg.delayMs)
+
         if (mode == PlaneMode.CONNECT) {
-            // Phase 1: appear and lift off
+            // ── 0 % → 14 % — 364 ms ──────────────────────────────────────────
             coroutineScope {
-                launch { alpha.animateTo(1f,              tween(380, easing = FastOutSlowInEasing)) }
-                launch { tx.animateTo(cfg.txDp * 0.06f,  tween(380, easing = FastOutSlowInEasing)) }
-                launch { ty.animateTo(-14f,               tween(380, easing = FastOutSlowInEasing)) }
-                launch { scl.animateTo(1.0f,              tween(380, easing = FastOutSlowInEasing)) }
+                launch { alpha .animateTo(1f,             tween(364, easing = EASE)) }
+                launch { txDp  .animateTo(cfg.txDp*.06f, tween(364, easing = EASE)) }
+                launch { tyDp  .animateTo(-14f,           tween(364, easing = EASE)) }
+                launch { scl   .animateTo(1.05f,          tween(364, easing = EASE)) }
+                launch { glowDp.animateTo(8f,             tween(364, easing = EASE)) }
             }
-            // Phase 2: climb
+            // ── 14 % → 70 % — 1456 ms ────────────────────────────────────────
             coroutineScope {
-                launch { alpha.animateTo(0.88f,           tween(1500, easing = LinearEasing)) }
-                launch { tx.animateTo(cfg.txDp * 0.6f,   tween(1500, easing = LinearEasing)) }
-                launch { ty.animateTo(-148f,              tween(1500, easing = LinearEasing)) }
-                launch { rot.animateTo(-50f,              tween(1500, easing = LinearEasing)) }
-                launch { scl.animateTo(0.72f,             tween(1500, easing = LinearEasing)) }
+                launch { alpha .animateTo(0.9f,           tween(1456, easing = LinearEasing)) }
+                launch { txDp  .animateTo(cfg.txDp*.6f,  tween(1456, easing = LinearEasing)) }
+                launch { tyDp  .animateTo(-161f,          tween(1456, easing = LinearEasing)) }
+                launch { rotDeg.animateTo(-52f,           tween(1456, easing = LinearEasing)) }
+                launch { scl   .animateTo(0.7f,           tween(1456, easing = LinearEasing)) }
+                launch { glowDp.animateTo(4f,             tween(1456, easing = LinearEasing)) }
             }
-            // Phase 3: fade into clouds
+            // ── 70 % → 100 % — 780 ms ────────────────────────────────────────
             coroutineScope {
-                launch { alpha.animateTo(0f,              tween(820, easing = FastOutSlowInEasing)) }
-                launch { tx.animateTo(cfg.txDp,           tween(820, easing = LinearEasing)) }
-                launch { ty.animateTo(-235f,              tween(820, easing = LinearEasing)) }
-                launch { rot.animateTo(-56f,              tween(820, easing = LinearEasing)) }
-                launch { scl.animateTo(0.44f,             tween(820, easing = LinearEasing)) }
+                launch { alpha .animateTo(0f,             tween(780, easing = LinearEasing)) }
+                launch { txDp  .animateTo(cfg.txDp,      tween(780, easing = LinearEasing)) }
+                launch { tyDp  .animateTo(-230f,          tween(780, easing = LinearEasing)) }
+                launch { rotDeg.animateTo(-56f,           tween(780, easing = LinearEasing)) }
+                launch { scl   .animateTo(0.5f,           tween(780, easing = LinearEasing)) }
+                launch { glowDp.animateTo(2f,             tween(780, easing = LinearEasing)) }
             }
+
         } else {
-            // DISCONNECT: appear, wobble, then fall and fade (red planes)
-            // Phase 1: appear
-            coroutineScope {
-                launch { alpha.animateTo(1f,              tween(220, easing = FastOutSlowInEasing)) }
-                launch { ty.animateTo(-10f,               tween(220, easing = FastOutSlowInEasing)) }
-                launch { scl.animateTo(1.05f,             tween(220, easing = FastOutSlowInEasing)) }
+            // DISCONNECT ──────────────────────────────────────────────────────
+
+            // Spark fires at plane-local t = 1600 ms, launched concurrently
+            // At that moment the plane is at ~ tx=txDp*0.59, ty=32.5 (64 % of 2500 ms)
+            launch {
+                delay(1600)
+                val txPx = with(density) { (cfg.txDp * 0.59f).dp.toPx() }
+                val tyPx = with(density) { 32.5f.dp.toPx() }
+                onSpark?.invoke(wPx * cfg.leftFrac + txPx, hPx * cfg.topFrac + tyPx)
             }
-            // Phase 2: wobble and start falling
+
+            // ── 0 % → 12 % — 300 ms ──────────────────────────────────────────
             coroutineScope {
-                launch { alpha.animateTo(0.95f,           tween(550)) }
-                launch { tx.animateTo(cfg.txDp * 0.22f,  tween(550, easing = FastOutSlowInEasing)) }
-                launch { ty.animateTo(30f,                tween(550, easing = FastOutSlowInEasing)) }
-                launch { rot.animateTo(52f,               tween(550, easing = FastOutSlowInEasing)) }
-                launch { scl.animateTo(0.88f,             tween(550)) }
+                launch { alpha .animateTo(1f,             tween(300, easing = EASE)) }
+                launch { txDp  .animateTo(cfg.txDp*.05f, tween(300, easing = EASE)) }
+                launch { tyDp  .animateTo(-16f,           tween(300, easing = EASE)) }
+                launch { scl   .animateTo(1.1f,           tween(300, easing = EASE)) }
+                launch { glowDp.animateTo(12f,            tween(300, easing = EASE)) }
             }
-            // Phase 3: EXPLODE — scatter outward, pop scale, fast fade
+            // ── 12 % → 28 % — 400 ms — color → orange ────────────────────────
             coroutineScope {
-                launch { alpha.animateTo(0f,                         tween(360, easing = FastOutSlowInEasing)) }
-                launch { tx.animateTo(cfg.txDp * 2.6f,               tween(360, easing = FastOutSlowInEasing)) }
-                launch { ty.animateTo(30f - cfg.txDp * 0.55f,        tween(360, easing = FastOutSlowInEasing)) }
-                launch { rot.animateTo(300f,                         tween(360, easing = LinearEasing)) }
-                launch { scl.animateTo(2.2f,                         tween(280, easing = FastOutSlowInEasing)) }
+                launch { txDp  .animateTo(cfg.txDp*.18f, tween(400, easing = EASE)) }
+                launch { tyDp  .animateTo(-30f,           tween(400, easing = EASE)) }
+                launch { rotDeg.animateTo(-12f,           tween(400, easing = EASE)) }
+                launch { scl   .animateTo(1.25f,          tween(400, easing = EASE)) }
+                launch { glowDp.animateTo(14f,            tween(400, easing = EASE)) }
+                launch { colorF.animateTo(1f,             tween(400, easing = LinearEasing)) }
+            }
+            // ── 28 % → 55 % — 675 ms — color → red ──────────────────────────
+            coroutineScope {
+                launch { alpha .animateTo(0.95f,          tween(675, easing = LinearEasing)) }
+                launch { txDp  .animateTo(cfg.txDp*.59f, tween(675, easing = LinearEasing)) }
+                launch { tyDp  .animateTo(32f,            tween(675, easing = LinearEasing)) }
+                launch { rotDeg.animateTo(40f,            tween(675, easing = LinearEasing)) }
+                launch { scl   .animateTo(0.8f,           tween(675, easing = LinearEasing)) }
+                launch { glowDp.animateTo(10f,            tween(675, easing = LinearEasing)) }
+                launch { colorF.animateTo(2f,             tween(675, easing = LinearEasing)) }
+            }
+            // ── 55 % → 100 % — 1125 ms — fall and fade ───────────────────────
+            coroutineScope {
+                launch { alpha .animateTo(0f,             tween(1125, easing = LinearEasing)) }
+                launch { txDp  .animateTo(cfg.txDp,      tween(1125, easing = LinearEasing)) }
+                launch { tyDp  .animateTo(95f,            tween(1125, easing = LinearEasing)) }
+                launch { rotDeg.animateTo(155f,           tween(1125, easing = LinearEasing)) }
+                launch { scl   .animateTo(0.08f,          tween(1125, easing = LinearEasing)) }
+                launch { glowDp.animateTo(4f,             tween(1125, easing = LinearEasing)) }
+                launch { colorF.animateTo(3f,             tween(1125, easing = LinearEasing)) }
             }
         }
     }
 
-    val planeColor = if (mode == PlaneMode.DISCONNECT) Red else Green
+    val d = LocalDensity.current
+    Canvas(Modifier.fillMaxSize()) {
+        val txPx   = with(d) { txDp.value.dp.toPx() }
+        val tyPx   = with(d) { tyDp.value.dp.toPx() }
+        val sizePx = with(d) { cfg.sizeDp.dp.toPx() }
+        val glowPx = with(d) { glowDp.value.dp.toPx() }
+        val cx     = wPx * cfg.leftFrac + txPx
+        val cy     = hPx * cfg.topFrac  + tyPx
+        val color  = (if (mode == PlaneMode.CONNECT) Color(0xFF34D058)
+                      else lerpPlaneColor(colorF.value))
+                     .copy(alpha = alpha.value)
 
-    Canvas(modifier = Modifier.fillMaxSize()) {
-        val cx     = size.width  * cfg.leftFrac
-        val cy     = size.height * cfg.topFrac
-        val sizePx = cfg.sizeDp.dp.toPx()
-        val txPx   = tx.value.dp.toPx()
-        val tyPx   = ty.value.dp.toPx()
-
-        translate(cx + txPx - sizePx / 2f, cy + tyPx - sizePx / 2f) {
-            rotate(rot.value, pivot = Offset(sizePx / 2f, sizePx / 2f)) {
-                scale(scl.value, pivot = Offset(sizePx / 2f, sizePx / 2f)) {
-                    drawPlaneSvg(planeColor.copy(alpha = alpha.value), sizePx)
-                }
-            }
-        }
+        drawPlane(cx, cy, sizePx, rotDeg.value, scl.value, color, glowPx)
     }
 }
 
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawPlaneSvg(
-    color: Color,
-    sizePx: Float,
-) {
-    val s = sizePx / 24f
-    val body = Path().apply {
-        moveTo(2f * s, 12f * s)
-        lineTo(22f * s,  2f * s)
-        lineTo(14f * s, 22f * s)
-        lineTo(11f * s, 13f * s)
-        close()
+// ─── Spark particle ───────────────────────────────────────────────────────────
+
+@Composable
+private fun SparkParticle(spark: SparkDef) {
+    val alpha = remember { Animatable(0f) }
+    val scl   = remember { Animatable(0f) }
+    val frac  = remember { Animatable(0f) }   // controls both position and color
+
+    LaunchedEffect(Unit) {
+        // ── 0 % → 18 % — 162 ms ──────────────────────────────────────────────
+        coroutineScope {
+            launch { alpha.animateTo(1f,   tween(162, easing = EASE)) }
+            launch { scl  .animateTo(2.2f, tween(162, easing = EASE)) }
+            launch { frac .animateTo(0.3f, tween(162, easing = EASE)) }
+        }
+        // ── 18 % → 60 % — 378 ms ─────────────────────────────────────────────
+        coroutineScope {
+            launch { scl .animateTo(1.0f,  tween(378, easing = LinearEasing)) }
+            launch { frac.animateTo(0.72f, tween(378, easing = LinearEasing)) }
+        }
+        // ── 60 % → 100 % — 360 ms ────────────────────────────────────────────
+        coroutineScope {
+            launch { alpha.animateTo(0f,   tween(360, easing = LinearEasing)) }
+            launch { scl  .animateTo(0.1f, tween(360, easing = LinearEasing)) }
+            launch { frac .animateTo(1f,   tween(360, easing = LinearEasing)) }
+        }
     }
-    drawPath(body, color = color)
-    drawLine(
-        color = color,
-        start = Offset(11f * s, 13f * s),
-        end   = Offset(14f * s, 10f * s),
-        strokeWidth = s,
-        cap = StrokeCap.Round,
-    )
+
+    Canvas(Modifier.fillMaxSize()) {
+        val f  = frac.value
+        val x  = spark.cx + spark.dx * f
+        val y  = spark.cy + spark.dy * f
+        val r  = (spark.sizePx * scl.value / 2f).coerceAtLeast(0.1f)
+        val col = lerpSparkColor(f).copy(alpha = alpha.value)
+
+        // Glow
+        drawIntoCanvas { canvas ->
+            val paint = android.graphics.Paint().apply {
+                isAntiAlias = true
+                color = col.copy(alpha = col.alpha * 0.7f).toArgb()
+                maskFilter = android.graphics.BlurMaskFilter(r * 2.5f, android.graphics.BlurMaskFilter.Blur.NORMAL)
+            }
+            canvas.nativeCanvas.drawCircle(x, y, r, paint)
+        }
+        drawCircle(col, r, Offset(x, y))
+    }
+}
+
+// ─── Drawing helpers ──────────────────────────────────────────────────────────
+
+private fun DrawScope.drawPlane(
+    cx: Float, cy: Float, sizePx: Float,
+    rotDeg: Float, scale: Float,
+    color: Color, glowPx: Float,
+) {
+    // Glow pass — blurred circle at plane center
+    if (glowPx > 0.5f) {
+        drawIntoCanvas { canvas ->
+            val paint = android.graphics.Paint().apply {
+                isAntiAlias = true
+                this.color = color.copy(alpha = color.alpha * 0.55f).toArgb()
+                maskFilter = android.graphics.BlurMaskFilter(glowPx * 1.8f, android.graphics.BlurMaskFilter.Blur.NORMAL)
+            }
+            canvas.nativeCanvas.drawCircle(cx, cy, sizePx * 0.55f, paint)
+        }
+    }
+    // Main shape
+    withTransform({
+        translate(cx - sizePx / 2f, cy - sizePx / 2f)
+        rotate(rotDeg, Offset(sizePx / 2f, sizePx / 2f))
+        scale(scale,   Offset(sizePx / 2f, sizePx / 2f))
+    }) {
+        val s = sizePx / 24f
+        val body = Path().apply {
+            moveTo( 2f * s, 12f * s)
+            lineTo(22f * s,  2f * s)
+            lineTo(14f * s, 22f * s)
+            lineTo(11f * s, 13f * s)
+            close()
+        }
+        drawPath(body, color)
+        drawLine(
+            color = color,
+            start = Offset(11f * s, 13f * s),
+            end   = Offset(14f * s, 10f * s),
+            strokeWidth = s,
+            cap = StrokeCap.Round,
+        )
+    }
+}
+
+// ─── Color helpers ────────────────────────────────────────────────────────────
+
+private fun lerpPlaneColor(f: Float): Color {
+    val green   = Color(0xFF34D058)
+    val orange  = Color(0xFFFF9500)
+    val red     = Color(0xFFFF3B30)
+    val darkRed = Color(0xFFFF1500)
+    return when {
+        f <= 1f -> lerp(green,  orange,  f.coerceIn(0f, 1f))
+        f <= 2f -> lerp(orange, red,     (f - 1f).coerceIn(0f, 1f))
+        else    -> lerp(red,    darkRed, (f - 2f).coerceIn(0f, 1f))
+    }
+}
+
+// frac is the position fraction (0→1), colour keyframes match time keyframes:
+//   frac=0.0 → #ffcc00   frac=0.30 → #ffaa00
+//   frac=0.72 → #ff4500  frac=1.0  → #ff1500
+private fun lerpSparkColor(frac: Float): Color {
+    val gold   = Color(0xFFFFCC00)
+    val amber  = Color(0xFFFFAA00)
+    val orange = Color(0xFFFF4500)
+    val red    = Color(0xFFFF1500)
+    return when {
+        frac < 0.30f  -> lerp(gold,   amber,  (frac / 0.30f).coerceIn(0f, 1f))
+        frac < 0.72f  -> lerp(amber,  orange, ((frac - 0.30f) / 0.42f).coerceIn(0f, 1f))
+        else          -> lerp(orange, red,    ((frac - 0.72f) / 0.28f).coerceIn(0f, 1f))
+    }
 }
