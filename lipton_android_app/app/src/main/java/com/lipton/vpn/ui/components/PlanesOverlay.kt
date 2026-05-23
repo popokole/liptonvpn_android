@@ -9,6 +9,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.*
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -64,7 +65,7 @@ fun PlanesOverlay(mode: PlaneMode?, modifier: Modifier = Modifier) {
                     wPx = wPx, hPx = hPx,
                     onSpark = if (mode == PlaneMode.DISCONNECT) { cx, cy ->
                         val szPx = with(density) { (if (idx % 2 == 0) 5f else 4f).dp.toPx() }
-                        val uid0 = System.nanoTime() + idx.toLong() * 100
+                        val uid0 = System.nanoTime() + idx.toLong() * 100L
                         BLAST_DP.forEachIndexed { j, dir ->
                             sparks += SparkDef(
                                 cx = cx, cy = cy,
@@ -187,12 +188,11 @@ private fun PlaneParticle(
         }
     }
 
-    val d = LocalDensity.current
     Canvas(Modifier.fillMaxSize()) {
-        val txPx   = with(d) { txDp.value.dp.toPx() }
-        val tyPx   = with(d) { tyDp.value.dp.toPx() }
-        val sizePx = with(d) { cfg.sizeDp.dp.toPx() }
-        val glowPx = with(d) { glowDp.value.dp.toPx() }
+        val txPx   = txDp.value.dp.toPx()
+        val tyPx   = tyDp.value.dp.toPx()
+        val sizePx = cfg.sizeDp.dp.toPx()
+        val glowPx = glowDp.value.dp.toPx()
         val cx     = wPx * cfg.leftFrac + txPx
         val cy     = hPx * cfg.topFrac  + tyPx
         val color  = (if (mode == PlaneMode.CONNECT) Color(0xFF34D058)
