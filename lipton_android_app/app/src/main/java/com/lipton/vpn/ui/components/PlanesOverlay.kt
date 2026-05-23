@@ -50,8 +50,8 @@ private data class SparkDef(
 
 @Composable
 fun PlanesOverlay(mode: PlaneMode?, modifier: Modifier = Modifier) {
+    if (mode == null) return
     key(mode) {
-        if (mode == null) return@key
         val sparks  = remember { mutableStateListOf<SparkDef>() }
         val density = LocalDensity.current
 
