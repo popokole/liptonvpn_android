@@ -1,6 +1,7 @@
 package com.lipton.vpn.data
 
 import android.util.Base64
+import com.lipton.vpn.BuildConfig
 import com.lipton.vpn.data.model.Server
 import com.lipton.vpn.data.model.Subscription
 import com.lipton.vpn.data.model.UserInfo
@@ -8,13 +9,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.io.IOException
 import java.net.Socket
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 private const val ALLOWED_DOMAIN = "sub.popokole.online"
-private const val APP_VERSION   = "1.0.0"
-private const val TRIAL_URL     = "https://sub.popokole.online/rxB74qQu6gGg1JTt"
+private const val TRIAL_URL      = "https://sub.popokole.online/rxB74qQu6gGg1JTt"
 
 class SubscriptionManager(private val settings: SettingsManager) {
 
@@ -45,11 +48,12 @@ class SubscriptionManager(private val settings: SettingsManager) {
 
     suspend fun fetchAndParse(url: String): Pair<List<Server>, UserInfo> = withContext(Dispatchers.IO) {
         val hwid = settings.getHwid()
+        val appVersion = BuildConfig.VERSION_NAME
         val request = Request.Builder()
             .url(url)
-            .header("User-Agent", "LiptonVPN/$APP_VERSION (Android)")
+            .header("User-Agent", "LiptonVPN/$appVersion (Android; ${android.os.Build.MODEL})")
             .header("X-App-Name", "LiptonVPN")
-            .header("X-App-Version", APP_VERSION)
+            .header("X-App-Version", appVersion)
             .header("Accept", "text/plain, application/json, */*")
             .header("X-Hwid", hwid)
             .header("X-Device-OS", "Android")
@@ -57,14 +61,33 @@ class SubscriptionManager(private val settings: SettingsManager) {
             .header("X-Device-Model", android.os.Build.MODEL)
             .build()
 
-        val response = client.newCall(request).execute()
-        if (!response.isSuccessful) throw Exception("Ошибка сервера (${response.code})")
+        val response = try {
+            client.newCall(request).execute()
+        } catch (e: UnknownHostException) {
+            throw Exception("Нет подключения к интернету")
+        } catch (e: SocketTimeoutException) {
+            throw Exception("Сервер не отвечает — проверьте интернет")
+        } catch (e: javax.net.ssl.SSLException) {
+            throw Exception("Ошибка SSL — проверьте дату и время на устройстве")
+        } catch (e: IOException) {
+            throw Exception("Ошибка сети — проверьте подключение к интернету")
+        }
+
+        if (!response.isSuccessful) {
+            throw Exception(when (response.code) {
+                401, 403 -> "Подписка недействительна (${response.code})"
+                404      -> "Подписка не найдена — проверьте ссылку"
+                429      -> "Слишком много запросов — подождите немного"
+                in 500..599 -> "Ошибка сервера (${response.code}) — попробуйте позже"
+                else     -> "Ошибка сервера (${response.code})"
+            })
+        }
 
         val userInfo = parseUserInfo(response.header("subscription-userinfo") ?: "")
-        val body = response.body?.string() ?: throw Exception("Пустой ответ")
+        val body = response.body?.string() ?: throw Exception("Пустой ответ от сервера")
         val content = decodeContent(body)
         val servers = content.lines().mapNotNull { parseUri(it.trim()) }
-        if (servers.isEmpty()) throw Exception("В подписке не найдено серверов")
+        if (servers.isEmpty()) throw Exception("В подписке нет серверов — обратитесь в поддержку")
 
         Pair(servers, userInfo)
     }
@@ -129,8 +152,9 @@ class SubscriptionManager(private val settings: SettingsManager) {
                 val trialApiUrl = "https://sub.popokole.online/trial?hwid=$hwid&duration=${durationMinutes}m"
                 val req = Request.Builder()
                     .url(trialApiUrl)
-                    .header("User-Agent", "LiptonVPN/$APP_VERSION (Android)")
+                    .header("User-Agent", "LiptonVPN/${BuildConfig.VERSION_NAME} (Android; ${android.os.Build.MODEL})")
                     .header("X-App-Name", "LiptonVPN")
+                    .header("X-App-Version", BuildConfig.VERSION_NAME)
                     .header("X-Hwid", hwid)
                     .build()
                 val resp = client.newCall(req).execute()
