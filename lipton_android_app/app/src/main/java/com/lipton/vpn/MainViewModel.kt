@@ -411,11 +411,31 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 )
             }
 
-            // Auto-ping all subscriptions in background after load
+            // Background refresh + ping on startup
             if (subs.isNotEmpty()) {
                 launch {
+                    val now = System.currentTimeMillis()
+                    val stale = subs.filter { sub ->
+                        !sub.isTrial && (now - sub.lastUpdated) > 6 * 3_600_000L
+                    }
+                    if (stale.isNotEmpty()) {
+                        logAction("Обновление конфигов серверов...")
+                        var refreshed = 0
+                        stale.forEach { sub ->
+                            try {
+                                subManager.refresh(sub.id)
+                                refreshed++
+                            } catch (_: Exception) {
+                                // silent — no internet or server error, keep existing data
+                            }
+                        }
+                        if (refreshed > 0) logAction("Конфиги обновлены")
+                    }
+
+                    // Ping after refresh so we get latencies for fresh server list
+                    val freshSubs = settings.getSubscriptions()
                     _state.update { it.copy(pinging = true) }
-                    subs.forEach { sub -> subManager.pingAll(sub.id) }
+                    freshSubs.forEach { sub -> subManager.pingAll(sub.id) }
                     _state.update { it.copy(pinging = false) }
                 }
             }
