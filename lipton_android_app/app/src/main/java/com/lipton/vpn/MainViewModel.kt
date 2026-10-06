@@ -24,6 +24,9 @@ import com.lipton.vpn.data.SettingsManager
 import com.lipton.vpn.data.SubscriptionManager
 import com.lipton.vpn.data.UpdateChecker
 import com.lipton.vpn.data.UpdateInfo
+import com.lipton.vpn.data.model.ChangeCurrent
+import com.lipton.vpn.data.model.ChangeOption
+import com.lipton.vpn.data.model.SubOverlay
 import com.lipton.vpn.data.model.Subscription
 import com.lipton.vpn.data.model.displayName
 import com.lipton.vpn.service.LiptonVpnService
@@ -37,6 +40,7 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.ConcurrentLinkedQueue
 
@@ -78,6 +82,26 @@ data class UiState(
     val accountStatus:       String?            = null,    // active | trial | grace | none | ...
     val accountPeriodEnd:    String?            = null,
     val accountNoSub:        Boolean            = false,   // вошёл, но подписки нет → предложить оплату
+    val accountOverlay:      SubOverlay?        = null,    // действующий временный тариф («Обход» поверх «Базового»)
+)
+
+// Состояние экрана «Сменить тариф».
+// phase: choose (список вариантов) | confirm (предпросмотр + подтверждение) |
+//        wait (ждём оплату / списание) | ok | fail
+data class TariffChangeState(
+    val loading:         Boolean             = false,
+    val available:       Boolean             = false,
+    val reason:          String?             = null,   // почему смена недоступна (текст сервера)
+    val discountPercent: Int                 = 0,
+    val current:         ChangeCurrent?      = null,
+    val options:         List<ChangeOption>  = emptyList(),
+    val preview:         ChangeOption?       = null,   // вариант, пересчитанный сервером
+    val previewing:      Boolean             = false,
+    val submitting:      Boolean             = false,
+    val phase:           String              = "choose",
+    val txId:            String?             = null,
+    val resultText:      String?             = null,   // пояснение на экране ok / fail
+    val error:           String?             = null,
 )
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
@@ -88,6 +112,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _state = MutableStateFlow(UiState())
     val state: StateFlow<UiState> = _state.asStateFlow()
+
+    private val _change = MutableStateFlow(TariffChangeState())
+    val changeState: StateFlow<TariffChangeState> = _change.asStateFlow()
+    private var changePollJob: Job? = null
+    private var changeKey: String? = null   // idempotency_key текущей попытки
+    private var changeGen = 0               // растёт при сбросе — устаревшие ответы игнорируются
 
     private var vpnService:            LiptonVpnService?              = null
     private var vpnPermissionLauncher: ActivityResultLauncher<Intent>? = null
@@ -610,6 +640,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     accountStatus    = me.status,
                     accountPeriodEnd = me.currentPeriodEnd,
                     accountNoSub     = !hasSub,
+                    accountOverlay   = me.overlay,
                     accountSyncing   = false,
                 )
             }
@@ -637,9 +668,198 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 it.copy(
                     isAuthed = false, subscriptions = emptyList(), activeServerId = null,
                     accountStatus = null, accountPeriodEnd = null, accountNoSub = false,
+                    accountOverlay = null,
                 )
             }
+            resetTariffChange()
         }
+    }
+
+    // ─── Смена тарифа ─────────────────────────────────────────────────────────
+
+    // Загрузить варианты смены (экран «Сменить тариф» открылся).
+    fun loadChangeOptions() {
+        changePollJob?.cancel()
+        changeKey = null
+        val gen = ++changeGen
+        _change.value = TariffChangeState(loading = true)
+        viewModelScope.launch {
+            try {
+                val res = api.changeOptions()
+                if (gen != changeGen) return@launch
+                _change.update {
+                    it.copy(
+                        loading         = false,
+                        available       = res.available,
+                        reason          = res.reason,
+                        discountPercent = res.discountPercent,
+                        current         = res.current,
+                        options         = res.options ?: emptyList(),
+                    )
+                }
+            } catch (e: ApiClient.ApiException) {
+                if (e.code == "unauthorized") _state.update { it.copy(isAuthed = false) }
+                _change.update { it.copy(loading = false, error = e.message ?: "Не удалось загрузить варианты") }
+            } catch (e: Exception) {
+                _change.update { it.copy(loading = false, error = e.message ?: "Не удалось загрузить варианты") }
+            }
+        }
+    }
+
+    // Выбор варианта → предпросмотр на сервере (суммы на текущий момент).
+    fun previewChange(option: ChangeOption) {
+        val cur = _change.value
+        if (cur.previewing || cur.submitting) return
+        _change.update { it.copy(previewing = true, error = null) }
+        val gen = changeGen
+        viewModelScope.launch {
+            try {
+                val p = api.changePreview(option.tariffId, option.periodDays)
+                if (gen != changeGen) return@launch
+                changeKey = UUID.randomUUID().toString()   // новая попытка — новый ключ
+                _change.update { it.copy(previewing = false, preview = p, phase = "confirm") }
+            } catch (e: Exception) {
+                _change.update { it.copy(previewing = false, error = e.message ?: "Не удалось рассчитать смену") }
+            }
+        }
+    }
+
+    // Назад к списку вариантов.
+    fun backToChangeOptions() {
+        if (_change.value.submitting) return   // запрос смены уже ушёл — ждём ответа
+        changePollJob?.cancel()
+        changeKey = null
+        changeGen++
+        _change.update {
+            it.copy(
+                phase = "choose", preview = null, txId = null, resultText = null,
+                error = null, submitting = false, previewing = false,
+            )
+        }
+    }
+
+    // Подтверждение смены. openUrl — открыть страницу оплаты (СБП / 3DS);
+    // вызывается из viewModelScope, т.е. на главном потоке.
+    fun confirmChange(openUrl: (String) -> Unit) {
+        val st = _change.value
+        val p = st.preview ?: return
+        if (st.submitting) return
+        val key = changeKey ?: UUID.randomUUID().toString().also { changeKey = it }
+        _change.update { it.copy(submitting = true, error = null) }
+        val gen = changeGen
+        viewModelScope.launch {
+            try {
+                val res = api.changeTariff(p.tariffId, p.periodDays, key, p.surchargeKopeks)
+                if (gen != changeGen) {
+                    // Экран закрыт, пока шёл запрос — просто подтянем подписку.
+                    syncAccountSubscription()
+                    return@launch
+                }
+                val tx = res.transactionId
+                when (res.status) {
+                    "changed" -> finishChangeOk("Тариф изменён без доплаты.")
+                    "charged" -> {
+                        if (tx != null && tx.isNotBlank()) startChangePolling(tx)
+                        else finishChangeOk("Оплата прошла, тариф изменён.")
+                    }
+                    "pending" -> {
+                        if (tx != null && tx.isNotBlank()) startChangePolling(tx)
+                        else finishChangeOk("Платёж в обработке. Подписка обновится автоматически.")
+                    }
+                    "payment_required" -> {
+                        val url = res.paymentUrl
+                        if (url != null && url.isNotBlank() && tx != null && tx.isNotBlank()) {
+                            try { openUrl(url) } catch (_: Exception) {}
+                            startChangePolling(tx)
+                        } else {
+                            _change.update { it.copy(submitting = false, error = "Не удалось создать платёж") }
+                        }
+                    }
+                    "failed" -> {
+                        _change.update {
+                            it.copy(
+                                submitting = false, phase = "fail",
+                                resultText = "Банк отклонил платёж. Попробуйте ещё раз или выберите другой способ.",
+                            )
+                        }
+                    }
+                    else -> {
+                        _change.update { it.copy(submitting = false, error = "Неизвестный ответ сервера: ${res.status}") }
+                    }
+                }
+            } catch (e: ApiClient.ApiException) {
+                _change.update { it.copy(submitting = false, error = e.message) }
+                if (e.code == "unauthorized") {
+                    _state.update { it.copy(isAuthed = false) }
+                } else if (e.status == 409) {
+                    // Сумма или условия могли измениться — тихо пересчитываем предпросмотр.
+                    try {
+                        val fresh = api.changePreview(p.tariffId, p.periodDays)
+                        changeKey = UUID.randomUUID().toString()
+                        _change.update { it.copy(preview = fresh) }
+                    } catch (_: Exception) {}
+                }
+            } catch (e: Exception) {
+                _change.update { it.copy(submitting = false, error = e.message ?: "Ошибка смены тарифа") }
+            }
+        }
+    }
+
+    private suspend fun finishChangeOk(text: String) {
+        _change.update { it.copy(submitting = false, phase = "ok", resultText = text) }
+        syncAccountSubscription()
+    }
+
+    // Опрос /payments/status до успеха / отказа (до 5 минут).
+    private fun startChangePolling(txId: String) {
+        changePollJob?.cancel()
+        _change.update { it.copy(submitting = false, phase = "wait", txId = txId, error = null) }
+        changePollJob = viewModelScope.launch {
+            val deadline = System.currentTimeMillis() + 5 * 60_000L
+            var done = false
+            while (!done && System.currentTimeMillis() < deadline) {
+                try {
+                    val ps = api.paymentStatus(txId)
+                    when (ps.status) {
+                        "succeeded" -> {
+                            done = true
+                            finishChangeOk("Оплата прошла, тариф изменён.")
+                        }
+                        "failed", "canceled" -> {
+                            done = true
+                            val reason = ps.failureReason
+                            _change.update {
+                                it.copy(
+                                    phase = "fail",
+                                    resultText = if (reason != null && reason.isNotBlank()) reason
+                                        else "Платёж отклонён или отменён. Попробуйте снова.",
+                                )
+                            }
+                        }
+                    }
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (_: Exception) {}
+                if (!done) delay(2500)
+            }
+            if (!done) {
+                _change.update {
+                    it.copy(
+                        phase = "fail",
+                        resultText = "Не дождались подтверждения оплаты. Если деньги списались, подписка обновится сама — нажмите ⟳ в карточке подписки.",
+                    )
+                }
+            }
+        }
+    }
+
+    // Экран закрыт — останавливаем опрос и сбрасываем состояние.
+    fun resetTariffChange() {
+        changePollJob?.cancel()
+        changePollJob = null
+        changeKey = null
+        changeGen++
+        _change.value = TariffChangeState()
     }
 
     // ─── Settings ─────────────────────────────────────────────────────────────
@@ -715,6 +935,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     override fun onCleared() {
         super.onCleared()
         connectionTimeoutJob?.cancel()
+        changePollJob?.cancel()
         vpnService?.statusListener = null
         vpnService?.logListener    = null
         pendingLogLines.clear()

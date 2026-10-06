@@ -38,6 +38,7 @@ import com.lipton.vpn.ui.account.AccountPanel
 import com.lipton.vpn.ui.account.NewsScreen
 import com.lipton.vpn.ui.account.PaymentScreen
 import com.lipton.vpn.ui.account.SupportScreen
+import com.lipton.vpn.ui.account.TariffChangeScreen
 
 @Composable
 fun MainScreen(
@@ -52,6 +53,7 @@ fun MainScreen(
     var showPayment  by remember { mutableStateOf(false) }
     var showNews     by remember { mutableStateOf(false) }
     var showSupport  by remember { mutableStateOf(false) }
+    var showChange   by remember { mutableStateOf(false) }
     var planesMode   by remember { mutableStateOf<PlaneMode?>(null) }
     val prevStatus   = remember { mutableStateOf(state.status) }
     val scope        = rememberCoroutineScope()
@@ -246,6 +248,7 @@ fun MainScreen(
                         onSupport = { showSupport = true },
                         onLogout  = { viewModel.logoutAccount() },
                         onRefresh = { viewModel.refreshAccount() },
+                        onChangeTariff = { showChange = true },
                     )
 
                 }
@@ -319,7 +322,16 @@ fun MainScreen(
 
             if (showPayment) {
                 Box(Modifier.fillMaxSize().zIndex(11f)) {
-                    PaymentScreen(vm = viewModel, onClose = { showPayment = false })
+                    PaymentScreen(
+                        vm = viewModel,
+                        onClose = { showPayment = false },
+                        onOpenChange = { showPayment = false; showChange = true },
+                    )
+                }
+            }
+            if (showChange) {
+                Box(Modifier.fillMaxSize().zIndex(11f)) {
+                    TariffChangeScreen(vm = viewModel, onClose = { showChange = false })
                 }
             }
             if (showNews) {

@@ -20,7 +20,14 @@ import java.util.concurrent.TimeUnit
 // Логика повторяет десктопный electron/api-client.js.
 class ApiClient(private val settings: SettingsManager) {
 
-    class ApiException(message: String, val status: Int = 0, val code: String = "") : Exception(message)
+    // code — внутренний код клиента (network / unauthorized / invalid);
+    // serverCode — error.code из ответа бэкенда (conflict, not_found, ...).
+    class ApiException(
+        message: String,
+        val status: Int = 0,
+        val code: String = "",
+        val serverCode: String = "",
+    ) : Exception(message)
 
     companion object {
         const val API_BASE = "https://liptonone.online"
@@ -79,6 +86,14 @@ class ApiClient(private val settings: SettingsManager) {
         } catch (_: Exception) { fallback }
     }
 
+    private fun errCode(r: Resp): String {
+        return try {
+            val obj = gson.fromJson(r.body, Map::class.java)
+            val err = obj?.get("error")
+            (if (err is Map<*, *>) err["code"] as? String else null) ?: ""
+        } catch (_: Exception) { "" }
+    }
+
     private inline fun <reified T> parse(body: String): T = gson.fromJson(body, T::class.java)
 
     // ─── Токены ─────────────────────────────────────────────────────────────
@@ -125,7 +140,7 @@ class ApiClient(private val settings: SettingsManager) {
             if (ok) return authed(method, path, bodyObj, true)
             throw ApiException("Сессия истекла, войдите снова", 401, "unauthorized")
         }
-        if (r.status >= 400) throw ApiException(errMsg(r, "Ошибка ${r.status}"), r.status)
+        if (r.status >= 400) throw ApiException(errMsg(r, "Ошибка ${r.status}"), r.status, serverCode = errCode(r))
         return r.body
     }
 
@@ -191,6 +206,32 @@ class ApiClient(private val settings: SettingsManager) {
 
     suspend fun paymentStatus(txId: String): PaymentStatus =
         parse(authed("GET", "/payments/status/$txId", null))
+
+    // ─── Смена тарифа ───────────────────────────────────────────────────────
+
+    suspend fun changeOptions(): ChangeOptions =
+        parse(authed("GET", "/me/subscription/change/options", null))
+
+    suspend fun changePreview(tariffId: String, periodDays: Int): ChangeOption =
+        parse(authed("POST", "/me/subscription/change/preview", mapOf(
+            "tariff_id" to tariffId,
+            "period_days" to periodDays,
+        )))
+
+    // idempotencyKey — UUID на одну попытку; expectedSurchargeKopeks — доплата из
+    // предпросмотра (если сумма на сервере изменилась, бэкенд ответит 409).
+    suspend fun changeTariff(
+        tariffId: String,
+        periodDays: Int,
+        idempotencyKey: String,
+        expectedSurchargeKopeks: Long,
+    ): ChangeResult =
+        parse(authed("POST", "/me/subscription/change", mapOf(
+            "tariff_id" to tariffId,
+            "period_days" to periodDays,
+            "idempotency_key" to idempotencyKey,
+            "expected_surcharge_kopeks" to expectedSurchargeKopeks,
+        )))
 
     // ─── Новости ────────────────────────────────────────────────────────────
 

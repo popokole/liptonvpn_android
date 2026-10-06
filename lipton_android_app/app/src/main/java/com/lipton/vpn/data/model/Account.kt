@@ -26,6 +26,65 @@ data class MeSubscription(
     @SerializedName("current_period_end") val currentPeriodEnd: String? = null,
     @SerializedName("subscription_url")   val subscriptionUrl: String?  = null,
     @SerializedName("devices_used")       val devicesUsed: Int? = null,
+    // Действующий «временный тариф» (например, «Обход глушилок» поверх «Базового»), иначе null.
+    @SerializedName("overlay")            val overlay: SubOverlay? = null,
+)
+
+data class SubOverlay(
+    @SerializedName("tariff_title")        val tariffTitle: String? = null,
+    @SerializedName("until")               val until: String? = null,
+    @SerializedName("revert_tariff_title") val revertTariffTitle: String? = null,
+)
+
+// ─── Смена тарифа (/me/subscription/change*) ────────────────────────────────
+
+// GET /me/subscription/change/options
+data class ChangeOptions(
+    @SerializedName("available")        val available: Boolean = false,
+    @SerializedName("reason")           val reason: String? = null,
+    @SerializedName("discount_percent") val discountPercent: Int = 0,
+    @SerializedName("current")          val current: ChangeCurrent? = null,
+    @SerializedName("options")          val options: List<ChangeOption>? = null,
+)
+
+data class ChangeCurrent(
+    @SerializedName("tariff_id")    val tariffId: String = "",
+    @SerializedName("tariff_code")  val tariffCode: String = "",
+    @SerializedName("tariff_title") val tariffTitle: String = "",
+    @SerializedName("period_days")  val periodDays: Int = 0,
+    @SerializedName("period_end")   val periodEnd: String? = null,
+)
+
+// Вариант смены. mode = "change" (зачёт остатка, скидка на доплату, излишек днями)
+// или "overlay" (временный тариф дороже на срок короче: полная цена, потом
+// подписка возвращается к revert_tariff_title).
+data class ChangeOption(
+    @SerializedName("mode")                val mode: String? = null,
+    @SerializedName("tariff_id")           val tariffId: String = "",
+    @SerializedName("tariff_code")         val tariffCode: String = "",
+    @SerializedName("tariff_title")        val tariffTitle: String = "",
+    @SerializedName("period_days")         val periodDays: Int = 0,
+    @SerializedName("price_kopeks")        val priceKopeks: Long = 0,
+    @SerializedName("credit_kopeks")       val creditKopeks: Long = 0,
+    @SerializedName("surcharge_kopeks")    val surchargeKopeks: Long = 0,
+    @SerializedName("discount_kopeks")     val discountKopeks: Long = 0,
+    @SerializedName("extra_days")          val extraDays: Int = 0,
+    @SerializedName("new_period_end")      val newPeriodEnd: String? = null,
+    @SerializedName("will_charge_card")    val willChargeCard: Boolean = false,
+    @SerializedName("card_last4")          val cardLast4: String? = null,
+    @SerializedName("overlay_until")       val overlayUntil: String? = null,
+    @SerializedName("revert_tariff_title") val revertTariffTitle: String? = null,
+) {
+    val isOverlay: Boolean get() = mode == "overlay"
+}
+
+// POST /me/subscription/change
+data class ChangeResult(
+    @SerializedName("status")         val status: String = "",   // changed | charged | payment_required | pending | failed
+    @SerializedName("payment_url")    val paymentUrl: String? = null,
+    @SerializedName("transaction_id") val transactionId: String? = null,
+    @SerializedName("amount_kopeks")  val amountKopeks: Long = 0,
+    @SerializedName("new_period_end") val newPeriodEnd: String? = null,
 )
 
 // GET /me/transactions
