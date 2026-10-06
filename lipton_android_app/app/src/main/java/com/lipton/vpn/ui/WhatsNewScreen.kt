@@ -37,7 +37,15 @@ private val FEATURES_1_1_6 = listOf(
     WhatsNewFeature("📺", "YouTube и стриминг", "Оптимизирован MTU туннеля — видео и стриминг работают без буферизации"),
 )
 
+private val FEATURES_1_3 = listOf(
+    WhatsNewFeature("👤", "Вход в аккаунт", "Войдите по коду с сайта, почте или через Telegram — подписка подтянется автоматически, без ручных ссылок"),
+    WhatsNewFeature("💳", "Оплата внутри приложения", "Выбирайте тариф и срок и оплачивайте прямо здесь — статус платежа обновится сам"),
+    WhatsNewFeature("📰", "Новости", "Лента новостей Lipton VPN теперь доступна прямо в приложении"),
+    WhatsNewFeature("💬", "Поддержка и ИИ-помощник", "Задайте вопрос — ответит ИИ, при необходимости подключится оператор"),
+)
+
 private fun featuresForVersion(version: String) = when {
+    version.startsWith("1.3") || version >= "1.3" -> FEATURES_1_3
     version.startsWith("1.1.6") || version > "1.1.5" -> FEATURES_1_1_6
     else -> FEATURES_1_1
 }

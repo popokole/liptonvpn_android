@@ -34,6 +34,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.lipton.vpn.ui.FaqScreen
 import com.lipton.vpn.ui.WhatsNewScreen
+import com.lipton.vpn.ui.account.AccountPanel
+import com.lipton.vpn.ui.account.NewsScreen
+import com.lipton.vpn.ui.account.PaymentScreen
+import com.lipton.vpn.ui.account.SupportScreen
 
 @Composable
 fun MainScreen(
@@ -45,6 +49,9 @@ fun MainScreen(
 
     var showSettings by remember { mutableStateOf(false) }
     var showFaq      by remember { mutableStateOf(false) }
+    var showPayment  by remember { mutableStateOf(false) }
+    var showNews     by remember { mutableStateOf(false) }
+    var showSupport  by remember { mutableStateOf(false) }
     var planesMode   by remember { mutableStateOf<PlaneMode?>(null) }
     val prevStatus   = remember { mutableStateOf(state.status) }
     val scope        = rememberCoroutineScope()
@@ -232,18 +239,13 @@ fun MainScreen(
                         },
                     )
 
-                    SubscriptionPanel(
-                        subscriptions       = state.subscriptions,
-                        trialUsed           = state.trialUsed,
-                        onAdd               = { url -> viewModel.addSubscription(url) },
-                        onRemove            = { id -> viewModel.removeSubscription(id) },
-                        onRefresh           = { id -> viewModel.refreshSubscription(id) },
-                        onGetTrial          = { mins -> viewModel.getTrialSubscription(mins) },
-                        onBuyClick          = {
-                            activity.startActivity(
-                                Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/liptonvpn_bot"))
-                            )
-                        },
+                    AccountPanel(
+                        state     = state,
+                        onPay     = { showPayment = true },
+                        onNews    = { showNews = true },
+                        onSupport = { showSupport = true },
+                        onLogout  = { viewModel.logoutAccount() },
+                        onRefresh = { viewModel.refreshAccount() },
                     )
 
                 }
@@ -313,6 +315,22 @@ fun MainScreen(
                         activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/liptonvpn_bot")))
                     },
                 )
+            }
+
+            if (showPayment) {
+                Box(Modifier.fillMaxSize().zIndex(11f)) {
+                    PaymentScreen(vm = viewModel, onClose = { showPayment = false })
+                }
+            }
+            if (showNews) {
+                Box(Modifier.fillMaxSize().zIndex(11f)) {
+                    NewsScreen(vm = viewModel, onClose = { showNews = false })
+                }
+            }
+            if (showSupport) {
+                Box(Modifier.fillMaxSize().zIndex(11f)) {
+                    SupportScreen(vm = viewModel, onClose = { showSupport = false })
+                }
             }
 
             if (showSettings) {

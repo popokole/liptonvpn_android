@@ -19,6 +19,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.lipton.vpn.BuildConfig
 import com.lipton.vpn.R
+import com.lipton.vpn.data.ApiClient
 import com.lipton.vpn.data.SettingsManager
 import com.lipton.vpn.data.SubscriptionManager
 import com.lipton.vpn.data.UpdateChecker
@@ -71,12 +72,19 @@ data class UiState(
     val showWhatsNew:        Boolean            = false,
     val clipboardUrl:        String?            = null,
     val hapticEnabled:       Boolean            = true,
+    // ─── Аккаунт (liptonone.online) ───────────────────────────────────────
+    val isAuthed:            Boolean            = false,
+    val accountSyncing:      Boolean            = false,   // тянем подписку после входа
+    val accountStatus:       String?            = null,    // active | trial | grace | none | ...
+    val accountPeriodEnd:    String?            = null,
+    val accountNoSub:        Boolean            = false,   // вошёл, но подписки нет → предложить оплату
 )
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     val settings   = SettingsManager(app)
     val subManager = SubscriptionManager(settings)
+    val api        = ApiClient(settings)
 
     private val _state = MutableStateFlow(UiState())
     val state: StateFlow<UiState> = _state.asStateFlow()
@@ -381,6 +389,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val trialUsed       = settings.getTrialAdded()
             val firstLaunchDone = settings.getFirstLaunchDone()
             val hapticEnabled   = settings.getHapticEnabled()
+            val authed          = settings.getAuthTokens() != null
 
             if (!firstLaunchDone) settings.setFirstLaunchDone(true)
 
@@ -407,9 +416,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     isFirstLaunch       = !firstLaunchDone,
                     logLines            = crashLines,
                     hapticEnabled       = hapticEnabled,
+                    isAuthed            = authed,
                     loading             = false,
                 )
             }
+
+            // Вошёл в аккаунт → тихо тянем актуальную подписку с сервера.
+            if (authed) launch { syncAccountSubscription() }
 
             // Background refresh + ping on startup
             if (subs.isNotEmpty()) {
@@ -562,6 +575,71 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         subManager.getTrialSubscription(hwid, durationMinutes)
         settings.setTrialAdded(true)
         _state.update { it.copy(trialUsed = true) }
+    }
+
+    // ─── Аккаунт (вход + авто-подписка) ────────────────────────────────────────
+
+    // Обёртки входа для LoginScreen. Кидают ApiException при ошибке.
+    suspend fun authDeviceExchange(code: String) = api.deviceExchange(code)
+    suspend fun authEmailRequest(email: String)  = api.emailRequest(email)
+    suspend fun authEmailVerify(email: String, code: String) = api.emailVerify(email, code)
+    suspend fun authTgInit()                     = api.tgInit()
+    suspend fun authTgPoll(linkToken: String)    = api.tgPoll(linkToken)
+
+    // Вызывать после успешного входа — переключает экран и тянет подписку.
+    fun completeLogin() {
+        _state.update { it.copy(isAuthed = true) }
+        viewModelScope.launch { syncAccountSubscription() }
+    }
+
+    // Тянет /me/subscription. Если есть subscription_url — заводит/обновляет
+    // единственную подписку. Если подписки нет — ставим флаг accountNoSub
+    // (экран предложит оплатить).
+    suspend fun syncAccountSubscription() {
+        _state.update { it.copy(accountSyncing = true) }
+        try {
+            val me = api.getSubscription()
+            val url = me.subscriptionUrl
+            val hasSub = !url.isNullOrBlank() &&
+                me.status != "none" && me.status != "expired" && me.status != "canceled"
+            if (hasSub) {
+                try { subManager.syncFromAccount(url!!) } catch (_: Exception) { /* оффлайн — оставляем кэш */ }
+            }
+            _state.update {
+                it.copy(
+                    accountStatus    = me.status,
+                    accountPeriodEnd = me.currentPeriodEnd,
+                    accountNoSub     = !hasSub,
+                    accountSyncing   = false,
+                )
+            }
+        } catch (e: ApiClient.ApiException) {
+            if (e.code == "unauthorized") {
+                // сессия умерла — на экран входа
+                _state.update { it.copy(isAuthed = false, accountSyncing = false) }
+            } else {
+                _state.update { it.copy(accountSyncing = false, errorMessage = e.message) }
+            }
+        }
+    }
+
+    fun refreshAccount() { viewModelScope.launch { syncAccountSubscription() } }
+
+    fun logoutAccount() {
+        viewModelScope.launch {
+            if (state.value.status == LiptonVpnService.VpnStatus.CONNECTED ||
+                state.value.status == LiptonVpnService.VpnStatus.CONNECTING) {
+                disconnect(getApplication())
+            }
+            api.logout()
+            settings.saveSubscriptions(emptyList())
+            _state.update {
+                it.copy(
+                    isAuthed = false, subscriptions = emptyList(), activeServerId = null,
+                    accountStatus = null, accountPeriodEnd = null, accountNoSub = false,
+                )
+            }
+        }
     }
 
     // ─── Settings ─────────────────────────────────────────────────────────────

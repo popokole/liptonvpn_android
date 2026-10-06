@@ -25,6 +25,7 @@ import androidx.lifecycle.lifecycleScope
 import com.lipton.vpn.service.LiptonNotificationHelper
 import com.lipton.vpn.ui.MainScreen
 import com.lipton.vpn.ui.OnboardingScreen
+import com.lipton.vpn.ui.auth.LoginScreen
 import com.lipton.vpn.ui.theme.LiptonTheme
 import com.lipton.vpn.worker.ExpiryCheckWorker
 import com.lipton.vpn.worker.LogCleanupWorker
@@ -93,14 +94,17 @@ class MainActivity : ComponentActivity() {
             val state by viewModel.state.collectAsState()
             LiptonTheme(appTheme = state.themeMode) {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    if (!state.loading && state.isFirstLaunch) {
-                        OnboardingScreen(onFinish = { viewModel.dismissFirstLaunch() })
-                    } else {
-                        MainScreen(
-                            state = state,
-                            viewModel = viewModel,
-                            activity = this,
-                        )
+                    when {
+                        !state.loading && state.isFirstLaunch ->
+                            OnboardingScreen(onFinish = { viewModel.dismissFirstLaunch() })
+                        !state.loading && !state.isAuthed ->
+                            LoginScreen(vm = viewModel)
+                        else ->
+                            MainScreen(
+                                state = state,
+                                viewModel = viewModel,
+                                activity = this,
+                            )
                     }
                 }
             }

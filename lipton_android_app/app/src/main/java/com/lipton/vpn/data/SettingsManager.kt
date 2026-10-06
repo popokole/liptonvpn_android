@@ -38,6 +38,11 @@ class SettingsManager(private val context: Context) {
         private val KEY_HAPTIC_ENABLED    = booleanPreferencesKey("haptic_enabled")
         private val KEY_CLIPBOARD_LAST    = stringPreferencesKey("clipboard_last_imported")
 
+        // ─── Аккаунт (вход в Lipton, liptonone.online) ──────────────────────────
+        private val KEY_AUTH_ACCESS       = stringPreferencesKey("auth_access")
+        private val KEY_AUTH_REFRESH      = stringPreferencesKey("auth_refresh")
+        private val KEY_AUTH_EXPIRES      = longPreferencesKey("auth_expires_at")
+
         private val SUB_TYPE       = object : TypeToken<List<Subscription>>() {}.type
         private val STR_LIST_TYPE  = object : TypeToken<List<String>>() {}.type
         private val MAP_BOOL_TYPE  = object : TypeToken<MutableMap<String, Boolean>>() {}.type
@@ -206,6 +211,38 @@ class SettingsManager(private val context: Context) {
 
     suspend fun setClipboardLastImported(v: String) {
         context.dataStore.edit { it[KEY_CLIPBOARD_LAST] = v }
+    }
+
+    // ─── Аккаунт: токены доступа ───────────────────────────────────────────────
+
+    data class AuthTokens(val access: String, val refresh: String, val expiresAt: Long)
+
+    suspend fun getAuthTokens(): AuthTokens? {
+        val prefs = context.dataStore.data.first()
+        val access = prefs[KEY_AUTH_ACCESS] ?: return null
+        val refresh = prefs[KEY_AUTH_REFRESH] ?: return null
+        if (refresh.isBlank()) return null
+        return AuthTokens(access, refresh, prefs[KEY_AUTH_EXPIRES] ?: 0L)
+    }
+
+    val authedFlow: Flow<Boolean> = context.dataStore.data.map {
+        !(it[KEY_AUTH_REFRESH].isNullOrBlank())
+    }
+
+    suspend fun setAuthTokens(access: String, refresh: String, expiresAt: Long) {
+        context.dataStore.edit {
+            it[KEY_AUTH_ACCESS] = access
+            it[KEY_AUTH_REFRESH] = refresh
+            it[KEY_AUTH_EXPIRES] = expiresAt
+        }
+    }
+
+    suspend fun clearAuthTokens() {
+        context.dataStore.edit {
+            it.remove(KEY_AUTH_ACCESS)
+            it.remove(KEY_AUTH_REFRESH)
+            it.remove(KEY_AUTH_EXPIRES)
+        }
     }
 
     // ─── Reset ───────────────────────────────────────────────────────────────

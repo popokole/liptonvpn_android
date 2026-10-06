@@ -143,6 +143,27 @@ class SubscriptionManager(private val settings: SettingsManager) {
         settings.saveSubscriptions(subs)
     }
 
+    // Подписка из аккаунта (liptonone.online): держим ровно одну подписку,
+    // совпадающую с subscription_url. Если уже есть — просто обновляем серверы,
+    // сохраняя id/выбор. Иначе заменяем список на эту единственную подписку.
+    suspend fun syncFromAccount(url: String) {
+        val u = normalizeUrl(url)
+        validateUrl(u)
+        val existing = settings.getSubscriptions()
+        val match = existing.find { it.url == u }
+        if (match != null) { refresh(match.id); return }
+        val (servers, userInfo) = fetchAndParse(u)
+        val sub = Subscription(
+            id       = UUID.randomUUID().toString(),
+            name     = "Подписка",
+            url      = u,
+            isTrial  = false,
+            servers  = servers,
+            userInfo = userInfo,
+        )
+        settings.saveSubscriptions(listOf(sub))
+    }
+
     // ─── Trial subscription ───────────────────────────────────────────────────
 
     suspend fun getTrialSubscription(hwid: String, durationMinutes: Int): Subscription =
