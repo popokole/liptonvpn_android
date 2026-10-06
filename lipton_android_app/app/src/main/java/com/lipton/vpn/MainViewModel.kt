@@ -792,11 +792,20 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 if (e.code == "unauthorized") {
                     _state.update { it.copy(isAuthed = false) }
                 } else if (e.status == 409) {
-                    // Сумма или условия могли измениться — тихо пересчитываем предпросмотр.
+                    // 409 бывает и «уже выполняется» (тот же ключ ещё обрабатывается) —
+                    // тогда ключ НЕ меняем, чтобы повтор вернул результат первой попытки.
+                    // Новый ключ — только если условия реально изменились.
                     try {
                         val fresh = api.changePreview(p.tariffId, p.periodDays)
-                        changeKey = UUID.randomUUID().toString()
-                        _change.update { it.copy(preview = fresh) }
+                        if (gen == changeGen) {
+                            val changed = fresh.surchargeKopeks != p.surchargeKopeks ||
+                                fresh.mode != p.mode ||
+                                fresh.willChargeCard != p.willChargeCard
+                            if (changed) {
+                                changeKey = UUID.randomUUID().toString()
+                                _change.update { it.copy(preview = fresh) }
+                            }
+                        }
                     } catch (_: Exception) {}
                 }
             } catch (e: Exception) {
