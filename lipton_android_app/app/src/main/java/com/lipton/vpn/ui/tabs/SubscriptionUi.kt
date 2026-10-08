@@ -47,17 +47,22 @@ fun auroraToneFor(state: UiState): AuroraTone {
 @Composable
 fun SubscriptionCapsule(state: UiState) {
     val days = daysLeft(state.accountPeriodEnd)
-    val bypass = isBypassTariff(state)
+    // Цвет капсулы — как у свечения: подключено — изумруд, «Обход» — синий, выключено — рыжий.
+    val tone = when (auroraToneFor(state)) {
+        AuroraTone.ON -> CapsuleTone.ACCENT
+        AuroraTone.BYPASS -> CapsuleTone.BYPASS
+        AuroraTone.OFF, AuroraTone.NO_SUB -> CapsuleTone.WARN
+    }
     when (state.accountStatus) {
         "active", "grace" -> Capsule(
             text = days?.let { pluralDays(it) } ?: "активна",
-            tone = if (bypass) CapsuleTone.BYPASS else CapsuleTone.ACCENT,
+            tone = tone,
             icon = LiptonIcons.Calendar,
         )
         "trial" -> Capsule(
             text = "пробный период",
             secondary = days?.let { pluralDays(it) },
-            tone = CapsuleTone.ACCENT,
+            tone = tone,
             icon = LiptonIcons.Calendar,
         )
         "expired" -> Capsule(text = "истекла", tone = CapsuleTone.WARN)

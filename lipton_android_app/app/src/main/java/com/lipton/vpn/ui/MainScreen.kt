@@ -64,7 +64,8 @@ import com.lipton.vpn.BuildConfig
 import com.lipton.vpn.MainViewModel
 import com.lipton.vpn.UiState
 import com.lipton.vpn.service.LiptonVpnService.VpnStatus
-import com.lipton.vpn.ui.account.NewsScreen
+import com.lipton.vpn.NewsState
+import com.lipton.vpn.StatsState
 import com.lipton.vpn.ui.account.PaymentScreen
 import com.lipton.vpn.ui.account.SupportScreen
 import com.lipton.vpn.ui.account.TariffChangeScreen
@@ -73,12 +74,28 @@ import com.lipton.vpn.ui.components.AuroraLayout
 import com.lipton.vpn.ui.components.ConnectionErrorSheet
 import com.lipton.vpn.ui.components.LiptonTab
 import com.lipton.vpn.ui.components.LiptonTabBar
-import com.lipton.vpn.ui.components.SettingsPanel
 import com.lipton.vpn.ui.components.tabBarBottomPadding
+import com.lipton.vpn.ui.screens.ConnectionCheckScreen
+import com.lipton.vpn.ui.screens.DomainsRoute
+import com.lipton.vpn.ui.screens.LogsRoute
+import com.lipton.vpn.ui.screens.PaymentMethodScreen
+import com.lipton.vpn.ui.screens.PaymentsHistoryScreen
+import com.lipton.vpn.ui.screens.PromoDialog
+import com.lipton.vpn.ui.screens.SplitTunnelScreen
 import com.lipton.vpn.ui.tabs.HomeTab
+import com.lipton.vpn.ui.tabs.NewsTab
+import com.lipton.vpn.ui.tabs.ProfileActions
 import com.lipton.vpn.ui.tabs.ProfileTab
+import com.lipton.vpn.ui.tabs.SITE_URL
 import com.lipton.vpn.ui.tabs.ServersTab
 import com.lipton.vpn.ui.tabs.auroraToneFor
+import com.lipton.vpn.ui.tabs.bypassTariff
+import com.lipton.vpn.ui.tabs.monthlyPeriod
+import com.lipton.vpn.ui.tabs.unreadCount
+import kotlinx.coroutines.flow.StateFlow
+import androidx.compose.runtime.collectAsState
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.statusBarsPadding
 import com.lipton.vpn.ui.theme.Green
 import com.lipton.vpn.ui.theme.Green3
 import com.lipton.vpn.ui.theme.LiptonTheme
@@ -92,6 +109,12 @@ object SubRoutes {
     const val PAYMENT = "payment"
     const val TARIFF_CHANGE = "tariff-change"
     const val SUPPORT = "support"
+    const val DOMAINS = "domains"
+    const val LOGS = "logs"
+    const val SPLIT_TUNNEL = "split-tunnel"
+    const val CONNECTION_CHECK = "connection-check"
+    const val PAYMENTS_HISTORY = "payments-history"
+    const val PAYMENT_METHOD = "payment-method"
 }
 
 /**
@@ -106,13 +129,17 @@ fun MainScreen(
     viewModel: MainViewModel,
     activity: ComponentActivity,
     startTab: LiptonTab = LiptonTab.HOME,
+    statsFlow: StateFlow<StatsState> = viewModel.stats,
+    newsFlow: StateFlow<NewsState> = viewModel.news,
 ) {
     val nav = rememberNavController()
     val entry by nav.currentBackStackEntryAsState()
     val currentTab = LiptonTab.fromRoute(entry?.destination?.route)
+    val news by newsFlow.collectAsState()
+    val newsUnread = news.unreadCount() > 0
 
-    var showSettings by rememberSaveable { mutableStateOf(false) }
     var showFaq      by rememberSaveable { mutableStateOf(false) }
+    var showPromo    by rememberSaveable { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(state.errorMessage) {
@@ -147,6 +174,14 @@ fun MainScreen(
     }
 
     val openTab: (LiptonTab) -> Unit = { tab -> nav.navigateToTab(tab) }
+    val openUrl: (String) -> Unit = { url ->
+        try { activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } catch (_: Exception) {}
+    }
+    val openPayment: (String?) -> Unit = { periodId ->
+        viewModel.paymentPreselectPeriod = periodId
+        nav.navigate(SubRoutes.PAYMENT) { launchSingleTop = true }
+    }
+    val sub: (String) -> Unit = { route -> nav.navigate(route) { launchSingleTop = true } }
 
     Box(Modifier.fillMaxSize()) {
         // Свечение под всеми вкладками; раскладка пятен — по вкладке, смена — кросс-фейдом.
@@ -178,25 +213,50 @@ fun MainScreen(
                         viewModel = viewModel,
                         activity = activity,
                         onOpenServers = { openTab(LiptonTab.SERVERS) },
-                        onPay = { nav.navigate(SubRoutes.PAYMENT) },
+                        onPay = openPayment,
+                        onPromo = { showPromo = true },
+                        statsFlow = statsFlow,
                     )
                 }
                 composable(LiptonTab.SERVERS.route) {
-                    ServersTab(state = state, viewModel = viewModel, activity = activity)
+                    ServersTab(
+                        state = state,
+                        viewModel = viewModel,
+                        activity = activity,
+                        onBuyBypass = {
+                            // Есть оплаченный «Базовый» — смена тарифа (в т. ч. временный «Обход»); иначе — оплата «Обхода».
+                            val paid = state.accountStatus == "active" || state.accountStatus == "grace"
+                            if (paid) sub(SubRoutes.TARIFF_CHANGE)
+                            else openPayment(state.appConfig?.bypassTariff()?.monthlyPeriod()?.id)
+                        },
+                    )
                 }
                 composable(LiptonTab.NEWS.route) {
-                    NewsScreen(vm = viewModel)
+                    NewsTab(
+                        state = state,
+                        viewModel = viewModel,
+                        onOpenStatus = { openUrl(SITE_URL + "/status") },
+                        newsFlow = newsFlow,
+                    )
                 }
                 composable(LiptonTab.PROFILE.route) {
                     ProfileTab(
                         state = state,
                         viewModel = viewModel,
-                        onPay = { nav.navigate(SubRoutes.PAYMENT) },
-                        onChangeTariff = { nav.navigate(SubRoutes.TARIFF_CHANGE) },
-                        onNews = { openTab(LiptonTab.NEWS) },
-                        onSupport = { nav.navigate(SubRoutes.SUPPORT) },
-                        onVpnSettings = { showSettings = true },
-                        onFaq = { showFaq = true },
+                        activity = activity,
+                        actions = ProfileActions(
+                            onPay = { openPayment(null) },
+                            onChangeTariff = { sub(SubRoutes.TARIFF_CHANGE) },
+                            onSupport = { sub(SubRoutes.SUPPORT) },
+                            onFaq = { showFaq = true },
+                            onLogs = { sub(SubRoutes.LOGS) },
+                            onDomains = { sub(SubRoutes.DOMAINS) },
+                            onSplitTunnel = { sub(SubRoutes.SPLIT_TUNNEL) },
+                            onConnectionCheck = { sub(SubRoutes.CONNECTION_CHECK) },
+                            onPaymentsHistory = { sub(SubRoutes.PAYMENTS_HISTORY) },
+                            onPaymentMethod = { sub(SubRoutes.PAYMENT_METHOD) },
+                            onOpenUrl = openUrl,
+                        ),
                     )
                 }
                 composable(
@@ -228,6 +288,41 @@ fun MainScreen(
                 ) {
                     SupportScreen(vm = viewModel, onClose = { nav.popBackStack() })
                 }
+                subScreen(SubRoutes.DOMAINS) { DomainsRoute(state, viewModel, onBack = { nav.popBackStack() }) }
+                subScreen(SubRoutes.LOGS) { LogsRoute(state, viewModel, onBack = { nav.popBackStack() }) }
+                subScreen(SubRoutes.SPLIT_TUNNEL) { SplitTunnelScreen(state, viewModel, activity, onBack = { nav.popBackStack() }) }
+                subScreen(SubRoutes.CONNECTION_CHECK) { ConnectionCheckScreen(state, viewModel, onBack = { nav.popBackStack() }) }
+                subScreen(SubRoutes.PAYMENTS_HISTORY) { PaymentsHistoryScreen(viewModel, onBack = { nav.popBackStack() }) }
+                subScreen(SubRoutes.PAYMENT_METHOD) { PaymentMethodScreen(state, viewModel, onBack = { nav.popBackStack() }) }
+            }
+
+            // Подложка под статус-бар: прокрученное содержимое не налезает на системные значки
+            run {
+                val bg = LiptonTheme.colors.bg
+                Box(
+                    Modifier
+                        .align(Alignment.TopCenter)
+                        .fillMaxWidth()
+                        .background(Brush.verticalGradient(listOf(bg.copy(alpha = 0.92f), bg.copy(alpha = 0f))))
+                        .statusBarsPadding()
+                        .height(10.dp),
+                )
+            }
+
+            // Затемнение у нижнего края под капсулой навигации (как в макетах: 120dp к фону)
+            AnimatedVisibility(
+                visible = currentTab != null,
+                enter = fadeIn(tween(Tokens.Motion.TAB_FADE_MS)),
+                exit = fadeOut(tween(160)),
+                modifier = Modifier.align(Alignment.BottomCenter),
+            ) {
+                val bg = LiptonTheme.colors.bg
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(120.dp)
+                        .background(Brush.verticalGradient(0f to bg.copy(alpha = 0f), 0.45f to bg.copy(alpha = 0.62f), 1f to bg)),
+                )
             }
 
             // Плавающая капсула навигации — только на вкладках
@@ -243,6 +338,7 @@ fun MainScreen(
                 LiptonTabBar(
                     selected = currentTab ?: LiptonTab.HOME,
                     onSelect = openTab,
+                    badges = if (newsUnread) setOf(LiptonTab.NEWS) else emptySet(),
                 )
             }
 
@@ -267,30 +363,11 @@ fun MainScreen(
                 )
             }
 
-            if (showSettings) {
-                SettingsPanel(
-                    bypassRu             = state.bypassRu,
-                    bypassDomains        = state.bypassDomains,
-                    autoConnectOnLaunch  = state.autoConnectOnLaunch,
-                    logLines             = state.logLines,
-                    trialUsed            = state.trialUsed,
-                    hapticEnabled        = state.hapticEnabled,
-                    themeMode            = state.themeMode,
-                    onBypassRuChange     = { viewModel.setBypassRu(it) },
-                    onAddDomain          = { viewModel.addBypassDomain(it) },
-                    onRemoveDomain       = { viewModel.removeBypassDomain(it) },
-                    onAutoConnectChange  = { viewModel.setAutoConnectOnLaunch(it) },
-                    onHapticChange       = { viewModel.setHapticEnabled(it) },
-                    onThemeChange        = { viewModel.setThemeMode(it) },
-                    onClearLogs          = { viewModel.clearLogs() },
-                    onGetTrial           = { mins -> viewModel.getTrialSubscription(mins) },
-                    onBuyClick           = {
-                        activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(BOT_URL)))
-                    },
-                    onFaq                = { showSettings = false; showFaq = true },
-                    onReset              = { viewModel.resetProfile(activity) },
-                    onClose              = { showSettings = false },
-                    onCheckUpdate        = { viewModel.manualCheckUpdate() },
+            if (showPromo) {
+                PromoDialog(
+                    viewModel = viewModel,
+                    onDismiss = { showPromo = false },
+                    onApplied = { showPromo = false; openPayment(null) },
                 )
             }
         }
@@ -329,6 +406,15 @@ private fun auroraLayoutFor(tab: LiptonTab?): AuroraLayout = when (tab) {
     LiptonTab.SERVERS    -> AuroraLayout.HEADER
     LiptonTab.NEWS       -> AuroraLayout.NEWS
     LiptonTab.PROFILE    -> AuroraLayout.PROFILE
+}
+
+/** Подэкран со своим «назад» и сдвигом сбоку. */
+private fun androidx.navigation.NavGraphBuilder.subScreen(route: String, content: @Composable () -> Unit) {
+    composable(
+        route,
+        enterTransition = { subEnter() }, exitTransition = { fadeOut(tween(160)) },
+        popEnterTransition = { fadeIn(tween(160)) }, popExitTransition = { subExit() },
+    ) { content() }
 }
 
 private fun AnimatedContentTransitionScope<NavBackStackEntry>.subEnter(): EnterTransition =
