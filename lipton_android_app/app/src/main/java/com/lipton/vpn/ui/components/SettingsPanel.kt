@@ -171,12 +171,8 @@ fun SettingsPanel(
                     ) {
                         Text("Тема приложения", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = lc2.textPrimary)
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            listOf(
-                                com.lipton.vpn.ui.theme.AppTheme.DARK    to "Тёмная",
-                                com.lipton.vpn.ui.theme.AppTheme.LIGHT   to "Светлая",
-                                com.lipton.vpn.ui.theme.AppTheme.SYSTEM  to "Авто",
-                                com.lipton.vpn.ui.theme.AppTheme.HACKER  to "Hacker",
-                            ).forEach { (t, label) ->
+                            // Тёмная / Светлая / Системная (Hacker убран в редизайне)
+                            com.lipton.vpn.ui.theme.AppTheme.entries.map { it to it.title }.forEach { (t, label) ->
                                 val active = themeMode == t
                                 Box(
                                     modifier = Modifier.weight(1f).clip(RoundedCornerShape(8.dp))

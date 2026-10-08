@@ -141,10 +141,9 @@ class SettingsManager(private val context: Context) {
 
     // ─── App theme ────────────────────────────────────────────────────────────
 
-    suspend fun getThemeMode(): AppTheme {
-        val raw = context.dataStore.data.first()[KEY_THEME] ?: return AppTheme.SYSTEM
-        return runCatching { AppTheme.valueOf(raw) }.getOrDefault(AppTheme.SYSTEM)
-    }
+    // Тёмная / Светлая / Системная (по умолчанию). Старое значение HACKER читается как DARK.
+    suspend fun getThemeMode(): AppTheme =
+        AppTheme.fromStored(context.dataStore.data.first()[KEY_THEME])
 
     suspend fun setThemeMode(theme: AppTheme) {
         context.dataStore.edit { it[KEY_THEME] = theme.name }

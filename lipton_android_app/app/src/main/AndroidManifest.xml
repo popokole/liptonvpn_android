@@ -25,6 +25,11 @@
     <!-- Haptic feedback -->
     <uses-permission android:name="android.permission.VIBRATE" />
 
+    <!-- Downloadable Fonts: провайдер шрифтов Google Play Services (видимость пакета на Android 11+) -->
+    <queries>
+        <package android:name="com.google.android.gms" />
+    </queries>
+
     <application
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
