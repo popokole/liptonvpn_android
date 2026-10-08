@@ -29,10 +29,13 @@ data class Server(
     val addedAt: Long = System.currentTimeMillis(),
 )
 
-fun Server.displayName(): String =
-    remark.replace(Regex("[\uD83C][\uDDE6-\uDDFF][\uD83C][\uDDE6-\uDDFF]\\s*"), "").trim()
+// Флаг страны — пара символов Regional Indicator (U+1F1E6…U+1F1FF). Регулярки
+// сопоставляют по кодовым точкам, поэтому диапазон задан кодовыми точками, а не
+// половинками суррогатной пары (с ними флаг не находился и не вырезался из названия).
+private val FLAG_REGEX = Regex("[\\x{1F1E6}-\\x{1F1FF}]{2}")
+private val FLAG_PREFIX_REGEX = Regex("[\\x{1F1E6}-\\x{1F1FF}]{2}\\s*")
 
-fun Server.flagEmoji(): String {
-    val match = Regex("([\uD83C][\uDDE6-\uDDFF][\uD83C][\uDDE6-\uDDFF])").find(remark)
-    return match?.value ?: ""
-}
+fun Server.displayName(): String =
+    remark.replace(FLAG_PREFIX_REGEX, "").trim()
+
+fun Server.flagEmoji(): String = FLAG_REGEX.find(remark)?.value ?: ""

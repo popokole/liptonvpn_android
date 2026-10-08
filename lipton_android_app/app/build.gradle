@@ -135,4 +135,7 @@ dependencies {
 
     // Splash Screen
     implementation 'androidx.core:core-splashscreen:1.0.1'
+
+    // Юнит-тесты (JVM): чистая логика каркаса редизайна
+    testImplementation 'junit:junit:4.13.2'
 }
