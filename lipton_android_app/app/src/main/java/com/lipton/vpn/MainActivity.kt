@@ -33,7 +33,10 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.lifecycleScope
 import com.lipton.vpn.service.LiptonNotificationHelper
+import com.lipton.vpn.data.BannerLogic
 import com.lipton.vpn.ui.MainScreen
+import com.lipton.vpn.ui.components.ForceUpdateScreen
+import com.lipton.vpn.ui.components.bannerUrl
 import com.lipton.vpn.ui.auth.AuthFlow
 import com.lipton.vpn.ui.auth.LoginSuccessScreen
 import com.lipton.vpn.ui.auth.authStepFor
@@ -116,7 +119,9 @@ class MainActivity : ComponentActivity() {
                 ThemeRevealHost(currentTheme = state.themeMode, onApply = { viewModel.setThemeMode(it) }) {
                     Box(Modifier.fillMaxSize().background(LiptonTheme.colors.bg)) {
                         // Корень: онбординг и вход → «Вы вошли» → приложение; гость — приложение без аккаунта.
+                        val forceUpdate = BannerLogic.blockingUpdate(state.banners)
                         val root = when {
+                            forceUpdate != null -> Root.UPDATE
                             state.loading -> Root.MAIN
                             state.isAuthed && state.loginSuccess -> Root.SUCCESS
                             state.isAuthed -> Root.MAIN
@@ -134,8 +139,19 @@ class MainActivity : ComponentActivity() {
                                     vm = viewModel,
                                     activity = this@MainActivity,
                                     start = authStepFor(state.authEntry),
+                                    signupStart = state.authEntry in setOf("start", "telegram", "email"),
                                     onClose = if (state.guest != null) ({ viewModel.openAuth(null) }) else null,
                                 )
+                                Root.UPDATE -> forceUpdate?.let { b ->
+                                    ForceUpdateScreen(
+                                        b,
+                                        onUpdate = {
+                                            val url = bannerUrl(b) ?: return@ForceUpdateScreen
+                                            try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } catch (_: Exception) {}
+                                        },
+                                        onBack = { moveTaskToBack(true) },
+                                    )
+                                }
                                 Root.SUCCESS -> LoginSuccessScreen(state = state, onContinue = { viewModel.dismissLoginSuccess() })
                                 Root.MAIN -> MainScreen(
                                     state = state,
@@ -179,7 +195,7 @@ class MainActivity : ComponentActivity() {
         viewModel.checkTrialDeadlines()
     }
 
-    private enum class Root { AUTH, SUCCESS, MAIN }
+    private enum class Root { UPDATE, AUTH, SUCCESS, MAIN }
 
     private fun checkClipboard() {
         val cm = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return

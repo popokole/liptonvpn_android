@@ -35,6 +35,8 @@ import com.lipton.vpn.TrialSession
 import com.lipton.vpn.UiState
 import com.lipton.vpn.data.SplitMode
 import com.lipton.vpn.data.model.AiMessage
+import com.lipton.vpn.data.model.AppBanner
+import com.lipton.vpn.ui.components.ForceUpdateScreen
 import com.lipton.vpn.data.model.ArticleDetail
 import com.lipton.vpn.data.model.ArticleSummary
 import com.lipton.vpn.data.model.NotificationPrefs
@@ -140,6 +142,8 @@ class DesignPreviewActivity : ComponentActivity() {
                 ThemeRevealHost(currentTheme = theme, onApply = { theme = it }) {
                     if (screen == "components") {
                         ComponentsGallery(stateName)
+                    } else if (stateName == "update") {
+                        ForceUpdateScreen(fakeBanners.first { it.kind == "update" && !it.dismissible }, onUpdate = {}, onBack = {})
                     } else if (screen == "onb-success") {
                         LoginSuccessScreen(state = fakeState(stateName, theme), onContinue = {})
                     } else if (screen.startsWith("onb-")) {
@@ -319,6 +323,8 @@ private fun fakeState(name: String, theme: AppTheme): UiState {
         )
         "nocard" -> base.copy(status = VpnStatus.DISCONNECTED, me = base.me?.copy(hasCard = false, cardLast4 = null))
         "cooldown" -> base.copy(status = VpnStatus.CONNECTED, cardUnlinkAvailableAt = isoIn(1))
+        "banner" -> base.copy(status = VpnStatus.CONNECTED, banners = fakeBanners.filter { it.kind != "screen" && it.dismissible })
+        "screen" -> base.copy(status = VpnStatus.CONNECTED, banners = fakeBanners.filter { it.kind == "screen" })
         "off" -> base.copy(status = VpnStatus.DISCONNECTED)
         "nosub" -> base.copy(status = VpnStatus.DISCONNECTED, accountStatus = "expired", accountNoSub = true)
         "bypass" -> base.copy(
@@ -330,6 +336,14 @@ private fun fakeState(name: String, theme: AppTheme): UiState {
         else -> base.copy(status = VpnStatus.CONNECTED)
     }
 }
+
+/** Баннеры из админки для витрины: в слоте, полноэкранный и обязательное обновление. */
+private val fakeBanners = listOf(
+    AppBanner("b1", "banner", "promo", "«Обход глушилок» на 30 дней", "Подключите поверх годовой подписки — потом вернётся прежний тариф.", "Подробнее", "/app/billing", true, 5),
+    AppBanner("b2", "update", "info", "Доступна версия 1.4.0", "Новый дизайн, гостевой доступ и раздельное туннелирование.", "Обновить", null, true, 3),
+    AppBanner("s1", "screen", "promo", "Новый тариф «Обход глушилок»", "Работает, когда обычный VPN глушат. Попробуйте 30 дней — потом вернётся прежний тариф.", "Подробнее", "/app/billing", true, 9),
+    AppBanner("u1", "update", "warning", "Обновите приложение", "Эта версия больше не поддерживается. Установите новую — подписка и настройки сохранятся.", "Обновить", null, false, 10),
+)
 
 /** Тестовые данные экранов, которые сами ходят в API. */
 private fun fakeFixtures(route: String?): ScreenFixtures = ScreenFixtures(

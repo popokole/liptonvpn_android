@@ -71,7 +71,11 @@ import com.lipton.vpn.NewsState
 import com.lipton.vpn.StatsState
 import com.lipton.vpn.ui.account.PaymentScreen
 import com.lipton.vpn.ui.account.TariffChangeScreen
+import com.lipton.vpn.data.BannerLogic
+import com.lipton.vpn.ui.components.AppBannerCard
+import com.lipton.vpn.ui.components.AppBannerScreen
 import com.lipton.vpn.ui.components.AuroraBackground
+import com.lipton.vpn.ui.components.bannerUrl
 import com.lipton.vpn.ui.components.AuroraLayout
 import com.lipton.vpn.ui.components.ConnectionErrorSheet
 import com.lipton.vpn.ui.components.LiptonTab
@@ -259,6 +263,16 @@ fun MainScreen(
                         onPromo = { sub(SubRoutes.PROMO) },
                         statsFlow = statsFlow,
                         onAuth = onAuth,
+                        banners = {
+                            // Баннеры из админки в слоте над главной (не больше двух)
+                            BannerLogic.slot(state.banners).take(2).forEach { b ->
+                                AppBannerCard(
+                                    b,
+                                    onCta = { bannerUrl(b)?.let(openUrl); if (b.kind != "update") viewModel.dismissBanner(b.id) },
+                                    onClose = { viewModel.dismissBanner(b.id) },
+                                )
+                            }
+                        },
                     )
                 }
                 composable(LiptonTab.SERVERS.route) {
@@ -409,6 +423,15 @@ fun MainScreen(
             )
 
             ClipboardImportBanner(state = state, viewModel = viewModel, activity = activity)
+
+            // Полноэкранный экран из админки (kind=screen) — по одному, закрытые не возвращаются
+            BannerLogic.screen(state.banners)?.let { b ->
+                AppBannerScreen(
+                    b,
+                    onCta = { bannerUrl(b)?.let(openUrl); viewModel.dismissBanner(b.id) },
+                    onClose = { viewModel.dismissBanner(b.id) },
+                )
+            }
         }
 
         // «Что нового» — поверх всего
