@@ -189,6 +189,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** Проверенный промокод — уйдёт в ближайший checkout. */
     var pendingPromo: String? = null
         private set
+    /** Что даёт проверенный промокод (скидка или дни) — для экрана «Промокод». */
+    var pendingPromoInfo: PromoResult? = null
+        private set
 
     private var ipJob: Job? = null
 
@@ -935,10 +938,23 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     suspend fun validatePromo(code: String): PromoResult {
         val res = api.validatePromo(code.trim())
         pendingPromo = if (res.valid) code.trim() else null
+        pendingPromoInfo = if (res.valid) res else null
         return res
     }
 
-    fun clearPendingPromo() { pendingPromo = null }
+    fun clearPendingPromo() { pendingPromo = null; pendingPromoInfo = null }
+
+    /** «Обновить» на экране логов: строка диагностики (версия, Android, состояние VPN). */
+    fun logDiagnostics() {
+        val st = state.value
+        val vpn = when (st.status) {
+            LiptonVpnService.VpnStatus.CONNECTED -> "подключён · ${activeServer()?.displayName() ?: "—"}"
+            LiptonVpnService.VpnStatus.CONNECTING -> "подключается"
+            LiptonVpnService.VpnStatus.ERROR -> "ошибка"
+            else -> "выключен"
+        }
+        logAction("Lipton VPN ${BuildConfig.VERSION_NAME} · Android ${Build.VERSION.RELEASE} · VPN: $vpn · обход РФ: ${if (st.bypassRu) "вкл" else "выкл"}")
+    }
 
     fun setNotificationsEnabled(enabled: Boolean) {
         _state.update { it.copy(notificationsEnabled = enabled) }

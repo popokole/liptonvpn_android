@@ -99,6 +99,7 @@ import com.lipton.vpn.ui.components.stateTone
 import com.lipton.vpn.ui.components.tabBarBottomPadding
 import com.lipton.vpn.ui.components.topAccentLine
 import com.lipton.vpn.ui.theme.AppTheme
+import com.lipton.vpn.ui.theme.LiptonText
 import com.lipton.vpn.ui.theme.LiptonTheme
 import com.lipton.vpn.ui.theme.LocalThemeChange
 import com.lipton.vpn.ui.theme.TABULAR_NUMS
@@ -121,6 +122,11 @@ class ProfileActions(
     val onPaymentsHistory: () -> Unit,
     val onPaymentMethod: () -> Unit,
     val onOpenUrl: (String) -> Unit,
+    // Волна 2: вход для гостя, смена почты, уведомления, политика
+    val onAuth: (String) -> Unit = {},
+    val onEmail: () -> Unit = {},
+    val onNotifications: () -> Unit = {},
+    val onPrivacy: () -> Unit = {},
 )
 
 const val SITE_URL = "https://liptonone.online"
@@ -144,6 +150,11 @@ fun ProfileTab(
     val scope = rememberCoroutineScope()
     var confirm by rememberSaveable { mutableStateOf<String?>(null) }   // relink | revoke:<hwid> | revoke_all | cancel | reset
     var updateText by remember { mutableStateOf<String?>(null) }
+
+    if (state.guest != null) {
+        GuestProfile(state, viewModel, actions)
+        return
+    }
 
     LaunchedEffect(Unit) { viewModel.loadProfile() }
 
@@ -210,8 +221,21 @@ fun ProfileTab(
             GlassGroup {
                 ThemeBlock(state.themeMode)
                 GroupDivider()
-                ToggleRow("Уведомления", "О подписке и новостях", LiptonIcons.Bell, state.notificationsEnabled) {
-                    viewModel.setNotificationsEnabled(it)
+                val np = state.notifPrefs
+                if (np != null) {
+                    // Три переключателя из /me/notifications — на отдельном экране.
+                    val on = listOfNotNull(
+                        "оплата".takeIf { np.paymentReminders }, "новости".takeIf { np.news }, "Telegram".takeIf { np.telegramMessages },
+                    )
+                    ListRow(
+                        "Уведомления",
+                        subtitle = if (on.isEmpty()) "Только о списаниях и оплатах" else on.joinToString(", ").replaceFirstChar { it.uppercase() },
+                        icon = LiptonIcons.Bell, onClick = actions.onNotifications,
+                    )
+                } else {
+                    ToggleRow("Уведомления", "О подписке и новостях", LiptonIcons.Bell, state.notificationsEnabled) {
+                        viewModel.setNotificationsEnabled(it)
+                    }
                 }
                 GroupDivider()
                 ToggleRow("Тактильный отклик", "Вибрация при подключении", LiptonIcons.Vibrate, state.hapticEnabled) {
@@ -231,8 +255,9 @@ fun ProfileTab(
                     "Почта",
                     subtitle = me?.email?.takeIf { it.isNotBlank() } ?: "не привязана",
                     icon = LiptonIcons.Mail,
-                    // TODO(redesign): нативная смена почты (new-scr-email, /auth/link/request-code + /auth/email/change) — пакет A4 ч.2; пока — кабинет на сайте.
-                    trailing = { GlassButton(if (me?.email.isNullOrBlank()) "Привязать" else "Изменить", onClick = { actions.onOpenUrl("$SITE_URL/app/settings") }) },
+                    // Нативная смена почты: код на новый адрес → /auth/email/change (или /auth/link/verify).
+                    onClick = actions.onEmail,
+                    trailing = { GlassButton(if (me?.email.isNullOrBlank()) "Привязать" else "Изменить", onClick = actions.onEmail) },
                 )
                 GroupDivider()
                 val tg = me?.tgUsername?.takeIf { it.isNotBlank() }
@@ -321,7 +346,7 @@ fun ProfileTab(
                     },
                 )
                 GroupDivider()
-                ListRow("Политика конфиденциальности", icon = LiptonIcons.Lock, onClick = { actions.onOpenUrl("$SITE_URL/legal?doc=privacy") })
+                ListRow("Политика конфиденциальности", icon = LiptonIcons.Lock, onClick = actions.onPrivacy)
                 GroupDivider()
                 ListRow("Публичная оферта", icon = LiptonIcons.Doc, onClick = { actions.onOpenUrl("$SITE_URL/legal?doc=offer") })
             }
@@ -398,6 +423,145 @@ fun ProfileTab(
                 onDismiss = { confirm = null },
             )
         }
+    }
+}
+
+// ─── Гостевой режим (new-guest-profile) ─────────────────────────────────────
+
+/** Профиль гостя: «Вы без аккаунта», создать аккаунт, настройки VPN и приложения на этом устройстве. */
+@Composable
+private fun GuestProfile(state: UiState, viewModel: MainViewModel, actions: ProfileActions) {
+    val c = LiptonTheme.colors
+    val t = c.stateTone(AuroraTone.ON)
+    val g = state.guest ?: return
+    var updateText by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    Column(
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .statusBarsPadding()
+            .padding(horizontal = ScreenHorizontalPadding),
+    ) {
+        TabTopBar { SubscriptionCapsule(state) }
+        ScreenTitle("Профиль")
+        Spacer(Modifier.height(20.dp))
+        val shape = RoundedCornerShape(28.dp)
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .glass(shape)
+                .drawBehind {
+                    drawRect(Brush.radialGradient(listOf(t.a.copy(alpha = if (c.isDark) 0.16f else 0.10f), Color.Transparent), center = Offset(size.width, 0f), radius = size.width * 0.8f))
+                }
+                .topAccentLine(t)
+                .padding(20.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                Box(Modifier.size(60.dp)) {
+                    Box(
+                        Modifier.size(60.dp).clip(CircleShape).background(c.text.copy(alpha = 0.06f))
+                            .drawBehind {
+                                drawCircle(c.text.copy(alpha = 0.3f), radius = size.minDimension / 2 - 1.dp.toPx(),
+                                    style = Stroke(1.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx()))))
+                            },
+                        contentAlignment = Alignment.Center,
+                    ) { Icon(LiptonIcons.User, null, tint = c.text.copy(alpha = 0.8f), modifier = Modifier.size(24.dp)) }
+                    Box(
+                        Modifier.align(Alignment.BottomEnd).offset(3.dp, 3.dp).size(22.dp).clip(CircleShape).background(c.bg).padding(2.dp)
+                            .clip(CircleShape).background(t.a),
+                        contentAlignment = Alignment.Center,
+                    ) { Icon(LiptonIcons.Timer, null, tint = Color(0xFF04140C), modifier = Modifier.size(11.dp)) }
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("ГОСТЕВОЙ РЕЖИМ", style = LiptonText.section.copy(fontSize = 11.sp), color = c.stateText(AuroraTone.ON))
+                    Text("Вы без аккаунта", style = MaterialTheme.typography.titleLarge, color = c.text)
+                    if (!g.ended) {
+                        val now = rememberNowTicker()
+                        ToneChip("Пробный доступ · ${com.lipton.vpn.data.formatCountdown(g.expiresAt - now)}", t.a, icon = LiptonIcons.Timer, textColor = c.text.copy(alpha = 0.9f), height = 22.dp)
+                    } else {
+                        ToneChip("15 минут прошли", c.warn, textColor = c.stateText(AuroraTone.OFF), height = 22.dp)
+                    }
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+            Text(
+                "Создайте аккаунт — сохраним подписку, устройства и настройки. Займёт минуту.",
+                style = MaterialTheme.typography.bodySmall, color = c.text.copy(alpha = 0.75f),
+            )
+            Spacer(Modifier.height(16.dp))
+            com.lipton.vpn.ui.components.PrimaryButton(
+                "Создать аккаунт через Telegram", onClick = { actions.onAuth("telegram") },
+                icon = LiptonIcons.Send, height = 46.dp, modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(10.dp))
+            GlassButton("Создать по почте", onClick = { actions.onAuth("email") }, icon = LiptonIcons.Mail, height = 48.dp, modifier = Modifier.fillMaxWidth())
+            Box(Modifier.fillMaxWidth().padding(top = 8.dp), contentAlignment = Alignment.Center) {
+                Text(
+                    buildAnnotatedString {
+                        withStyle(SpanStyle(color = c.text.copy(alpha = 0.66f))) { append("Уже есть аккаунт? ") }
+                        withStyle(SpanStyle(color = c.stateText(AuroraTone.ON), fontWeight = FontWeight.Bold)) { append("Войти") }
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.clip(RoundedCornerShape(999.dp)).clickable(role = Role.Button) { actions.onAuth("login") }.padding(horizontal = 12.dp, vertical = 10.dp),
+                )
+            }
+        }
+
+        Section("VPN") {
+            GlassGroup {
+                ToggleRow("Обход российских сайтов", "Российские сайты — напрямую, остальное через VPN", LiptonIcons.Branch, state.bypassRu) {
+                    viewModel.setBypassRu(it)
+                }
+                GroupDivider()
+                ListRow("Свои домены для обхода", subtitle = "Сайты, которые открывать без VPN", icon = LiptonIcons.ListIcon, onClick = actions.onDomains)
+            }
+        }
+        Section("Приложение") {
+            GlassGroup {
+                ThemeBlock(state.themeMode)
+                GroupDivider()
+                ListRow("Язык", icon = LiptonIcons.Translate, trailing = { TrailingText("Русский") })
+            }
+        }
+        Section("Помощь") {
+            GlassGroup {
+                // Чат поддержки работает только с аккаунтом — гостю открываем бота.
+                ListRow("Чат поддержки", subtitle = "Ответим в Telegram", icon = LiptonIcons.Chat, onClick = actions.onSupport)
+                GroupDivider()
+                ListRow("База знаний", subtitle = "Инструкции и частые вопросы", icon = LiptonIcons.Book, onClick = actions.onFaq)
+            }
+        }
+        Section("О приложении") {
+            GlassGroup {
+                ListRow(
+                    "Версия", icon = LiptonIcons.Info,
+                    onClick = {
+                        updateText = "проверяем…"
+                        scope.launch {
+                            val has = try { viewModel.manualCheckUpdate() } catch (_: Exception) { null }
+                            updateText = when (has) { true -> "есть обновление"; false -> "обновлений нет"; null -> "не удалось проверить" }
+                        }
+                    },
+                    trailing = { TrailingText(BuildConfig.VERSION_NAME + (updateText?.let { " · $it" } ?: "")) },
+                )
+                GroupDivider()
+                ListRow("Политика конфиденциальности", icon = LiptonIcons.Lock, onClick = actions.onPrivacy)
+            }
+        }
+        Text(
+            "Без аккаунта настройки хранятся только\nна этом устройстве",
+            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
+            color = c.text.copy(alpha = 0.5f), textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
+        )
+        Text(
+            "Lipton VPN · разработка popokole",
+            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
+            color = c.text.copy(alpha = 0.4f), textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        )
+        Spacer(Modifier.height(tabBarBottomPadding()))
     }
 }
 

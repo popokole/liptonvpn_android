@@ -130,10 +130,14 @@ fun HomeTab(
     onPay: (periodId: String?) -> Unit,
     onPromo: () -> Unit,
     statsFlow: StateFlow<StatsState> = viewModel.stats,
+    onAuth: (String) -> Unit = {},
+    banners: @Composable () -> Unit = {},
 ) {
     val stats by statsFlow.collectAsState()
     val tone = auroraToneFor(state)
-    val noSub = state.accountStatus != null && !hasActiveSubscription(state)
+    val guest = state.guest
+    val daily = state.dailyTrial
+    val noSub = guest == null && daily == null && state.accountStatus != null && !hasActiveSubscription(state)
 
     LaunchedEffect(Unit) {
         viewModel.loadConfigIfNeeded()
@@ -168,11 +172,37 @@ fun HomeTab(
                     )
                 }
             }
+            // Баннеры и обновления из админки (GET /app/banners)
+            banners()
         }
 
         val screenH = LocalConfiguration.current.screenHeightDp
-        if (noSub) {
-            NoSubHero(onSubscribe = { onPay(null) }, onPromo = onPromo)
+        if (guest != null && guest.ended) {
+            // Гостевые 15 минут прошли
+            GuestEndedHero(state, onCreate = { onAuth("start") }, onLogin = { onAuth("login") })
+        } else if (guest != null || daily != null) {
+            // Пробный доступ: обычный блок подключения + карточка с отсчётом + статистика сессии
+            ConnectHero(
+                state = state,
+                stats = stats,
+                tone = tone,
+                onToggle = { viewModel.handleConnectToggle(activity) },
+                onOpenServers = onOpenServers,
+            )
+            Spacer(Modifier.height(32.dp))
+            TrialAccessCard(
+                session = guest ?: daily!!,
+                guest = guest != null,
+                onPrimary = { if (guest != null) onAuth("start") else onPay(null) },
+                onSecondary = if (guest != null) ({ onAuth("login") }) else null,
+            )
+            Spacer(Modifier.height(32.dp))
+            StatsSection(state = state, stats = stats, tone = tone, onRenew = { onPay(null) }, limited = true)
+        } else if (noSub) {
+            NoSubHero(
+                onSubscribe = { onPay(null) }, onPromo = onPromo,
+                trial = if (state.appConfig?.guestEnabled == true) ({ DailyTrialButton(state) { viewModel.startDailyTrial(activity) } }) else null,
+            )
             Spacer(Modifier.height(((screenH - 740).coerceIn(24, 88)).dp))
             NoSubTariffs(state, onPay)
         } else {
@@ -347,12 +377,27 @@ private fun ServerChip(state: UiState, onClick: () -> Unit) {
 // ─── Бенто-статистика ────────────────────────────────────────────────────────
 
 @Composable
-private fun StatsSection(state: UiState, stats: StatsState, tone: AuroraTone, onRenew: () -> Unit) {
+private fun StatsSection(state: UiState, stats: StatsState, tone: AuroraTone, onRenew: () -> Unit, limited: Boolean = false) {
     val c = LiptonTheme.colors
     val connected = state.status == VpnStatus.CONNECTED
     val t = c.stateTone(tone)
     val nowMs = System.currentTimeMillis()
     val week = remember(stats.trafficDays, nowMs / 60_000) { TrafficLedger.week(stats.trafficDays, nowMs) }
+
+    if (limited) {
+        // Пробный доступ: только текущая сессия; тариф и трафик — после входа / оплаты.
+        SectionTitle("Статистика", "текущая сессия")
+        Spacer(Modifier.height(16.dp))
+        BentoColumn {
+            SeesYouTile(state, stats, connected, t)
+            BentoRow(height = 192.dp) {
+                PingTile(stats, connected, t, Modifier.weight(1f))
+                SpeedTile(stats, connected, t, Modifier.weight(1f))
+            }
+            if (state.guest != null) AfterLoginTile()
+        }
+        return
+    }
 
     SectionTitle("Статистика", "сегодня, ${ruDayMonth(nowMs)}")
     Spacer(Modifier.height(16.dp))
@@ -765,7 +810,7 @@ private fun WeekBars(week: List<com.lipton.vpn.data.DayTraffic>, avg: Long, t: S
 // ─── Нет подписки: «Подключите защиту», тарифы, что входит ───────────────────
 
 @Composable
-private fun NoSubHero(onSubscribe: () -> Unit, onPromo: () -> Unit) {
+private fun NoSubHero(onSubscribe: () -> Unit, onPromo: () -> Unit, trial: (@Composable () -> Unit)? = null) {
     val c = LiptonTheme.colors
     val warn = c.stateTone(AuroraTone.NO_SUB)
     Column(Modifier.fillMaxWidth().padding(top = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -793,6 +838,10 @@ private fun NoSubHero(onSubscribe: () -> Unit, onPromo: () -> Unit) {
         )
         Spacer(Modifier.height(32.dp))
         PrimaryButton("Оформить подписку", onClick = onSubscribe, tone = ButtonTone.WARN, modifier = Modifier.widthIn(min = 248.dp), trailingIcon = LiptonIcons.ArrowRight)
+        if (trial != null) {
+            Spacer(Modifier.height(16.dp))
+            trial()
+        }
         Spacer(Modifier.height(12.dp))
         GhostButton("Ввести промокод", onClick = onPromo, icon = LiptonIcons.Tag)
     }

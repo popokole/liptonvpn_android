@@ -31,7 +31,15 @@ import androidx.compose.ui.unit.dp
 import com.lipton.vpn.MainViewModel
 import com.lipton.vpn.NewsState
 import com.lipton.vpn.StatsState
+import com.lipton.vpn.TrialSession
 import com.lipton.vpn.UiState
+import com.lipton.vpn.data.SplitMode
+import com.lipton.vpn.data.model.AiMessage
+import com.lipton.vpn.data.model.ArticleDetail
+import com.lipton.vpn.data.model.ArticleSummary
+import com.lipton.vpn.data.model.NotificationPrefs
+import com.lipton.vpn.data.model.TxItem
+import com.lipton.vpn.ui.screens.ScreenFixtures
 import com.lipton.vpn.data.TrafficLedger
 import com.lipton.vpn.data.model.AppConfig
 import com.lipton.vpn.data.model.DeviceItem
@@ -117,6 +125,14 @@ class DesignPreviewActivity : ComponentActivity() {
             else -> AppTheme.DARK
         }
         val stateName = intent.getStringExtra("state") ?: "on"
+        val routeArg = intent.getStringExtra("route")
+        val route = when (routeArg) {
+            "unlink" -> "payment-method"
+            "email2" -> "email"
+            "article" -> "kb/vpn-ne-podklyuchaetsya"
+            else -> routeArg
+        }
+        val fixtures = fakeFixtures(routeArg)
 
         setContent {
             var theme by remember { mutableStateOf(initialTheme) }
@@ -156,6 +172,8 @@ class DesignPreviewActivity : ComponentActivity() {
                             startTab = tab,
                             statsFlow = remember(stateName) { MutableStateFlow(fakeStats(stateName)) },
                             newsFlow = remember { MutableStateFlow(fakeNews()) },
+                            startRoute = route,
+                            fixtures = fixtures,
                         )
                     }
                 }
@@ -203,7 +221,7 @@ private fun fakeStats(name: String): StatsState {
         val total = (v * gb).toLong()
         days[key] = longArrayOf(total * 8 / 9, total / 9)
     }
-    val on = name == "on" || name == "bypass"
+    val on = name == "on" || name == "bypass" || name == "guest" || name == "daily"
     return StatsState(
         connectedAt = if (on) now - (45 * 60 + 28) * 1000L else 0L,
         downBps = if (on) 23_300_000 else 0, upBps = if (on) 3_100_000 else 0,
@@ -253,11 +271,26 @@ private fun fakeState(name: String, theme: AppTheme): UiState {
         hwid = "hw-this",
         lastPingAt = System.currentTimeMillis(),
         autoConnectOnLaunch = true,
-        bypassDomains = listOf("example.org", "example.net", "example.com"),
+        bypassDomains = listOf("example.org", "example.net", "corp.example.com"),
+        bypassDomainDates = mapOf("example.org" to System.currentTimeMillis() - 2 * 86_400_000L, "example.net" to System.currentTimeMillis() - 2 * 86_400_000L),
+        notifPrefs = NotificationPrefs(paymentReminders = true, news = true, telegramMessages = false),
+        splitTunnelMode = SplitMode.BYPASS_SELECTED,
+        splitTunnelApps = listOf("com.android.chrome"),
+        logLines = listOf(
+            "[14:01:58] >> Lipton VPN 1.3.0 · Android 16 · VPN: выключен · обход РФ: вкл",
+            "[14:02:11] >> Обход РУ трафика: включён",
+            "[14:02:15] >> Подключение к: Авто-баланс",
+            "[14:02:16] >> VPN подключён",
+            "[14:02:17] Пинг Германия: 41 мс",
+            "[14:02:17] [Warning] пинг Нидерланды: 142 мс",
+            "[14:02:18] Пинг Авто-баланс: 38 мс",
+            "[14:03:40] Сессия: 13,5 МБ",
+        ),
         me = MeProfile(
             email = "user@example.com", telegramLinked = true, tgUsername = "user",
             hasCard = true, cardLast4 = "4242", createdAt = isoIn(-210),
             nextChargeKopeks = 15900, nextChargePeriodDays = 30, nextChargeAt = isoIn(24),
+            cardBrand = "visa", cardExp = "08/28", nextChargeTariffTitle = "Базовый",
         ),
         devices = listOf(
             DeviceItem(hwid = "hw-this", platform = "Android", model = "Pixel 8", updatedAt = isoIn(0)),
@@ -266,7 +299,26 @@ private fun fakeState(name: String, theme: AppTheme): UiState {
         ),
         deviceLimit = 5,
     )
+    val now = System.currentTimeMillis()
+    val guestBase = base.copy(
+        isAuthed = false, accountStatus = null, accountPeriodEnd = null, accountTariffCode = null,
+        me = null, devices = null, subscriptionUrl = null, notifPrefs = null,
+    )
     return when (name) {
+        "guest" -> guestBase.copy(
+            status = VpnStatus.CONNECTED,
+            guest = TrialSession(now + (12 * 60 + 34) * 1000L, 15, "Авто-баланс", "https://example.invalid/guest"),
+        )
+        "guest-ended" -> guestBase.copy(
+            status = VpnStatus.DISCONNECTED, subscriptions = emptyList(),
+            guest = TrialSession(now - 1000L, 15, "Авто-баланс", null, ended = true),
+        )
+        "daily" -> base.copy(
+            status = VpnStatus.CONNECTED, accountStatus = "none", accountPeriodEnd = null, accountNoSub = true,
+            dailyTrial = TrialSession(now + (9 * 60 + 12) * 1000L, 15, null, "https://example.invalid/daily"),
+        )
+        "nocard" -> base.copy(status = VpnStatus.DISCONNECTED, me = base.me?.copy(hasCard = false, cardLast4 = null))
+        "cooldown" -> base.copy(status = VpnStatus.CONNECTED, cardUnlinkAvailableAt = isoIn(1))
         "off" -> base.copy(status = VpnStatus.DISCONNECTED)
         "nosub" -> base.copy(status = VpnStatus.DISCONNECTED, accountStatus = "expired", accountNoSub = true)
         "bypass" -> base.copy(
@@ -278,6 +330,35 @@ private fun fakeState(name: String, theme: AppTheme): UiState {
         else -> base.copy(status = VpnStatus.CONNECTED)
     }
 }
+
+/** Тестовые данные экранов, которые сами ходят в API. */
+private fun fakeFixtures(route: String?): ScreenFixtures = ScreenFixtures(
+    transactions = listOf(
+        TxItem("t1", "renewal", 15900, "succeeded", null, isoIn(0), "Базовый", 30),
+        TxItem("t2", "change", 31100, "succeeded", null, isoIn(-6), "Обход", null),
+        TxItem("t3", "renewal", 15900, "succeeded", null, isoIn(-25), "Базовый", 30),
+        TxItem("t4", "renewal", 15900, "failed", "Недостаточно средств", isoIn(-25), "Базовый", 30),
+        TxItem("t5", "initial", 119900, "succeeded", null, isoIn(-79), "Базовый", 365),
+        TxItem("t6", "refund", 39900, "succeeded", null, isoIn(-210), "Базовый", 90),
+    ),
+    articles = listOf(
+        ArticleSummary("vpn-ne-podklyuchaetsya", "VPN не подключается — что делать", "Подключение", 3),
+        ArticleSummary("iphone-happ", "Как подключить iPhone через Happ", "Устройства", 2),
+        ArticleSummary("novyj-telefon", "Как перенести подписку на новый телефон", "Устройства", 2),
+        ArticleSummary("drugaya-strana", "Почему сайты видят другую страну", "Обход блокировок", 1),
+        ArticleSummary("oplata-kartoj", "Как оплатить и отвязать карту", "Оплата", 2),
+    ),
+    article = ArticleDetail(
+        "vpn-ne-podklyuchaetsya", "VPN не подключается — что делать", "Подключение", 3, null,
+        "<p>Чаще всего помогает одно из трёх действий.</p><h3>1. Обновите ссылку</h3><p>В профиле нажмите «Обновить ссылку» — приложение подтянет её само.</p><h3>2. Выберите Авто-баланс</h3><p>Он сам найдёт рабочий сервер.</p><h3>3. Напишите нам</h3><p>Чат поддержки отвечает сразу.</p>",
+    ),
+    dialog = listOf(
+        AiMessage("user", "Не подключается на iPhone в Happ, пишет timeout. Вчера всё работало.", isoIn(0), "m1"),
+        AiMessage("assistant", "Давайте проверим по шагам:\n1. В Happ нажмите «Обновить подписку».\n2. Выберите «Авто-баланс».\n3. Переподключитесь.", isoIn(0), "m2"),
+    ),
+    showUnlinkSheet = route == "unlink",
+    emailStep2 = if (route == "email2") "new@example.com" else null,
+)
 
 @Composable
 private fun ComponentsGallery(stateName: String) {

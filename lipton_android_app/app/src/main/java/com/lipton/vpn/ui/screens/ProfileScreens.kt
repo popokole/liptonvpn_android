@@ -64,6 +64,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.drawable.toBitmap
 import com.lipton.vpn.MainViewModel
+import com.lipton.vpn.data.SplitMode
+import com.lipton.vpn.ui.components.GlassButton
+import com.lipton.vpn.ui.components.SegmentOption
+import com.lipton.vpn.ui.components.Segmented
+import com.lipton.vpn.ui.components.tabBarBottomPadding
 import com.lipton.vpn.UiState
 import com.lipton.vpn.data.model.TxItem
 import com.lipton.vpn.service.LiptonVpnService.VpnStatus
@@ -98,97 +103,32 @@ import java.util.Calendar
 import java.util.Locale
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  Подэкраны профиля (минимальные, в стиле редизайна). Подробные макеты
-//  new-scr-* (домены, логи, платежи, способ оплаты, промокод) — пакет A4 ч.2.
+//  Подэкраны профиля: раздельное туннелирование и проверка соединения.
+//  Остальные подэкраны — ProfileSubScreens.kt, PaymentScreens.kt, SupportScreens.kt.
 // ─────────────────────────────────────────────────────────────────────────────
-
-/** Каркас подэкрана: «‹» в стеклянном круге, заголовок 22/700, прокрутка, отступы под бары. */
-@Composable
-fun SubPage(
-    title: String,
-    onBack: () -> Unit,
-    modifier: Modifier = Modifier,
-    scroll: Boolean = true,
-    trailing: @Composable RowScope.() -> Unit = {},
-    content: @Composable ColumnScope.() -> Unit,
-) {
-    val c = LiptonTheme.colors
-    Column(
-        modifier
-            .fillMaxSize()
-            .statusBarsPadding()
-            .navigationBarsPadding()
-            .imePadding(),
-    ) {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = ScreenHorizontalPadding).padding(top = 8.dp).height(48.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
-                Modifier
-                    .size(40.dp)
-                    .glass(CircleShape, highlightHeight = 20.dp)
-                    .clickable(role = Role.Button, onClick = onBack)
-                    .semantics { contentDescription = "Назад" },
-                contentAlignment = Alignment.Center,
-            ) { Icon(LiptonIcons.ChevronLeft, null, tint = c.text, modifier = Modifier.size(18.dp)) }
-            Spacer(Modifier.width(14.dp))
-            Text(title, style = MaterialTheme.typography.titleLarge.copy(fontSize = MaterialTheme.typography.titleLarge.fontSize * 1.1f), color = c.text, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-            trailing()
-        }
-        Column(
-            Modifier
-                .fillMaxSize()
-                .then(if (scroll) Modifier.verticalScroll(rememberScrollState()) else Modifier)
-                .padding(horizontal = ScreenHorizontalPadding)
-                .padding(top = 16.dp, bottom = 24.dp),
-            content = content,
-        )
-    }
-}
-
-// ─── Свои домены и логи — прежние экраны в новом каркасе ──────────────────────
-
-/** «Свои домены для обхода». TODO(redesign): перерисовать по new-scr-domains-play (A4 ч.2). */
-@Composable
-fun DomainsRoute(state: UiState, viewModel: MainViewModel, onBack: () -> Unit) {
-    Box(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding().verticalScroll(rememberScrollState()).padding(top = 12.dp)) {
-        BypassDomainsScreen(
-            domains = state.bypassDomains,
-            onAdd = { viewModel.addBypassDomain(it) },
-            onRemove = { viewModel.removeBypassDomain(it) },
-            onBack = onBack,
-        )
-    }
-}
-
-/** «Логи приложения». TODO(redesign): перерисовать по new-scr-logs-play (A4 ч.2). */
-@Composable
-fun LogsRoute(state: UiState, viewModel: MainViewModel, onBack: () -> Unit) {
-    Box(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().verticalScroll(rememberScrollState()).padding(top = 12.dp)) {
-        LogsScreen(logLines = state.logLines, onClear = { viewModel.clearLogs() }, onBack = onBack)
-    }
-}
 
 // ─── Раздельное туннелирование ───────────────────────────────────────────────
 
 private data class AppEntry(val pkg: String, val label: String, val icon: ImageBitmap?)
 
 /**
- * Раздельное туннелирование: отмеченные приложения идут мимо VPN (режим
- * «все, кроме выбранных», VpnService.Builder.addDisallowedApplication).
- * Список — приложения с иконкой на рабочем столе (<queries> на LAUNCHER).
- * Изменения применяются при выходе с экрана: если VPN включён, он переподключится.
+ * Раздельное туннелирование по приложениям: режим «Все через VPN» или «Выбранные
+ * мимо VPN» (VpnService.Builder.addDisallowedApplication). Список — приложения с
+ * иконкой на рабочем столе (<queries> на LAUNCHER), с поиском. Изменения
+ * применяются при следующем подключении; если VPN включён — можно переподключиться.
  */
 @Composable
 fun SplitTunnelScreen(state: UiState, viewModel: MainViewModel, activity: ComponentActivity, onBack: () -> Unit) {
     val c = LiptonTheme.colors
     val ctx = LocalContext.current
     var apps by remember { mutableStateOf<List<AppEntry>?>(null) }
-    var selected by remember { mutableStateOf(state.splitTunnelApps.toSet()) }
     var query by remember { mutableStateOf("") }
-    val initial = remember { state.splitTunnelApps.toSet() }
-    val latest by rememberUpdatedState(selected)
+    val initialApps = remember { state.splitTunnelApps.toSet() }
+    val initialMode = remember { state.splitTunnelMode }
+    val selected = state.splitTunnelApps.toSet()
+    val mode = state.splitTunnelMode
+    val changed = selected != initialApps || mode != initialMode
+    val connected = state.status == VpnStatus.CONNECTED
 
     LaunchedEffect(Unit) {
         apps = withContext(Dispatchers.IO) {
@@ -206,74 +146,90 @@ fun SplitTunnelScreen(state: UiState, viewModel: MainViewModel, activity: Compon
                 .sortedBy { it.label.lowercase(Locale.getDefault()) }
         }
     }
-    // Применяем при уходе с экрана, только если список изменился.
-    DisposableEffect(Unit) {
-        onDispose { if (latest != initial) viewModel.setSplitTunnelApps(latest.toList()) }
-    }
 
-    SubPage("Раздельное туннелирование", onBack, scroll = false) {
-        GlassCard(Modifier.fillMaxWidth()) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                ToneCircleIcon(LiptonIcons.Apps, c.stateTone(AuroraTone.ON).a, size = 40.dp, iconSize = 18.dp)
-                Column(Modifier.weight(1f)) {
-                    Text("Все, кроме выбранных", style = MaterialTheme.typography.titleSmall, color = c.text)
-                    Text(
-                        "Отмеченные приложения пойдут напрямую, мимо VPN. Остальные — через VPN.",
-                        style = MaterialTheme.typography.bodySmall, color = c.text.copy(alpha = 0.72f),
-                    )
+    ProfileSubPage(state, "Раздельное туннелирование", onBack, scroll = false) {
+        SubIntro("Выберите, какие приложения пойдут мимо VPN. Применится при следующем подключении.")
+        Spacer(Modifier.height(16.dp))
+        Segmented(
+            options = listOf(
+                SegmentOption(SplitMode.ALL, "Все через VPN", LiptonIcons.ShieldCheck),
+                SegmentOption(SplitMode.BYPASS_SELECTED, "Выбранные мимо VPN", LiptonIcons.Apps),
+            ),
+            selected = mode,
+            onSelect = { m, _ -> viewModel.setSplitTunnelMode(m) },
+        )
+        if (changed && connected) {
+            Spacer(Modifier.height(12.dp))
+            GlassCard(Modifier.fillMaxWidth(), contentPadding = PaddingValues(14.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Icon(LiptonIcons.Info, null, tint = c.stateText(AuroraTone.OFF), modifier = Modifier.size(16.dp))
+                    Text("Изменения применятся при следующем подключении", style = MaterialTheme.typography.bodySmall, color = c.text.copy(alpha = 0.8f), modifier = Modifier.weight(1f))
+                    GlassButton("Переподключить", onClick = { viewModel.reconnectIfConnected(activity) }, height = 34.dp)
                 }
             }
-            if (state.status == VpnStatus.CONNECTED) {
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    "Изменения применятся, когда вы вернётесь назад: VPN переподключится.",
-                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
-                    color = c.stateText(AuroraTone.OFF),
-                )
-            }
         }
-        Spacer(Modifier.height(12.dp))
-        SearchField(query, { query = it }, "Найти приложение")
-        Spacer(Modifier.height(8.dp))
-        Row(Modifier.fillMaxWidth().height(36.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                if (selected.isEmpty()) "Все приложения через VPN" else "${selected.size} ${pluralRu(selected.size, "приложение", "приложения", "приложений")} мимо VPN",
-                style = MaterialTheme.typography.bodySmall, color = c.text.copy(alpha = 0.7f), modifier = Modifier.weight(1f),
-            )
-            if (selected.isNotEmpty()) GhostButton("Сбросить", onClick = { selected = emptySet() })
-        }
-        val list = apps
-        if (list == null) {
-            Box(Modifier.fillMaxWidth().height(160.dp), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = c.stateTone(AuroraTone.ON).a, strokeWidth = 2.dp, modifier = Modifier.size(22.dp))
+        if (mode == SplitMode.ALL) {
+            Spacer(Modifier.height(16.dp))
+            GlassCard(Modifier.fillMaxWidth()) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    ToneCircleIcon(LiptonIcons.ShieldCheck, c.stateTone(AuroraTone.ON).a, size = 40.dp, iconSize = 18.dp)
+                    Column(Modifier.weight(1f)) {
+                        Text("Все приложения через VPN", style = MaterialTheme.typography.titleSmall, color = c.text)
+                        Text(
+                            if (selected.isEmpty()) "Чтобы пустить приложение напрямую, выберите «Выбранные мимо VPN»."
+                            else "Список из ${selected.size} ${pluralRu(selected.size, "приложения", "приложений", "приложений")} сохранён — он заработает в режиме «Выбранные мимо VPN».",
+                            style = MaterialTheme.typography.bodySmall, color = c.text.copy(alpha = 0.72f),
+                        )
+                    }
+                }
             }
+            Spacer(Modifier.height(tabBarBottomPadding()))
         } else {
-            val q = query.trim().lowercase(Locale.getDefault())
-            val shown = list.filter { q.isEmpty() || it.label.lowercase(Locale.getDefault()).contains(q) || it.pkg.contains(q) }
-                .sortedByDescending { it.pkg in selected }
-            LazyColumn(
-                Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(24.dp)).glass(RoundedCornerShape(24.dp)),
-                contentPadding = PaddingValues(vertical = 4.dp),
-            ) {
-                items(shown, key = { it.pkg }) { app ->
-                    val on = app.pkg in selected
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .height(60.dp)
-                            .clickable(role = Role.Switch) { selected = if (on) selected - app.pkg else selected + app.pkg }
-                            .padding(horizontal = 16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        if (app.icon != null) Image(app.icon, null, Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)))
-                        else Box(Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).background(c.text.copy(alpha = 0.08f)))
-                        Column(Modifier.weight(1f)) {
-                            Text(app.label, style = MaterialTheme.typography.titleSmall, color = c.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(if (on) "мимо VPN" else "через VPN", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
-                                color = if (on) c.stateText(AuroraTone.OFF) else c.text.copy(alpha = 0.55f))
+            Spacer(Modifier.height(12.dp))
+            SearchField(query, { query = it }, "Найти приложение")
+            Spacer(Modifier.height(8.dp))
+            Row(Modifier.fillMaxWidth().height(36.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    if (selected.isEmpty()) "Отметьте приложения, которые пойдут напрямую" else "${selected.size} ${pluralRu(selected.size, "приложение", "приложения", "приложений")} мимо VPN",
+                    style = MaterialTheme.typography.bodySmall, color = c.text.copy(alpha = 0.7f), modifier = Modifier.weight(1f),
+                )
+                if (selected.isNotEmpty()) GhostButton("Сбросить", onClick = { viewModel.setSplitTunnelApps(emptyList()) })
+            }
+            val list = apps
+            if (list == null) {
+                Box(Modifier.fillMaxWidth().height(160.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = c.stateTone(AuroraTone.ON).a, strokeWidth = 2.dp, modifier = Modifier.size(22.dp))
+                }
+            } else {
+                val q = query.trim().lowercase(Locale.getDefault())
+                val shown = list.filter { q.isEmpty() || it.label.lowercase(Locale.getDefault()).contains(q) || it.pkg.contains(q) }
+                    .sortedByDescending { it.pkg in initialApps }
+                LazyColumn(
+                    Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(24.dp)).glass(RoundedCornerShape(24.dp)),
+                    contentPadding = PaddingValues(top = 4.dp, bottom = tabBarBottomPadding()),
+                ) {
+                    items(shown, key = { it.pkg }) { app ->
+                        val on = app.pkg in selected
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .height(60.dp)
+                                .clickable(role = Role.Switch) {
+                                    viewModel.setSplitTunnelApps((if (on) selected - app.pkg else selected + app.pkg).toList())
+                                }
+                                .padding(horizontal = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            if (app.icon != null) Image(app.icon, null, Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)))
+                            else Box(Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).background(c.text.copy(alpha = 0.08f)))
+                            Column(Modifier.weight(1f)) {
+                                Text(app.label, style = MaterialTheme.typography.titleSmall, color = c.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(if (on) "мимо VPN" else "через VPN", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
+                                    color = if (on) c.stateText(AuroraTone.OFF) else c.text.copy(alpha = 0.55f))
+                            }
+                            LiptonSwitch(checked = on)
                         }
-                        LiptonSwitch(checked = on)
                     }
                 }
             }
@@ -329,7 +285,7 @@ fun ConnectionCheckScreen(state: UiState, viewModel: MainViewModel, onBack: () -
     }
     LaunchedEffect(state.status) { if (state.status == VpnStatus.CONNECTED || state.status == VpnStatus.DISCONNECTED) run() }
 
-    SubPage("Проверка соединения", onBack) {
+    ProfileSubPage(state, "Проверка соединения", onBack) {
         val r = result
         val connected = state.status == VpnStatus.CONNECTED
         val good = c.stateTone(AuroraTone.ON).a
@@ -433,241 +389,3 @@ private fun CheckRow(icon: ImageVector, title: String, value: String, ok: Boolea
     }
 }
 
-// ─── История платежей ────────────────────────────────────────────────────────
-
-private fun txKindRu(t: TxItem): String = when (t.kind) {
-    "initial" -> "Оплата подписки"
-    "subscription", "renewal", "renew" -> "Продление"
-    "change" -> "Смена тарифа"
-    "overlay" -> "Временный тариф"
-    "manual" -> "Списание"
-    "refund" -> "Возврат"
-    else -> t.tariffTitle ?: "Платёж"
-}
-
-/** История платежей из /me/transactions. TODO(redesign): вид по new-scr-payments-play (A4 ч.2), поля B3. */
-@Composable
-fun PaymentsHistoryScreen(viewModel: MainViewModel, onBack: () -> Unit) {
-    val c = LiptonTheme.colors
-    var items by remember { mutableStateOf<List<TxItem>?>(null) }
-    var error by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(Unit) {
-        try { items = viewModel.api.getTransactions().transactions } catch (e: Exception) { error = e.message ?: "Не удалось загрузить" }
-    }
-    SubPage("История платежей", onBack) {
-        val list = items
-        when {
-            list == null && error == null -> Box(Modifier.fillMaxWidth().height(160.dp), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = c.stateTone(AuroraTone.ON).a, strokeWidth = 2.dp, modifier = Modifier.size(22.dp))
-            }
-            list == null -> GlassCard(Modifier.fillMaxWidth()) { Text(error ?: "", style = MaterialTheme.typography.bodyMedium, color = c.text.copy(alpha = 0.72f)) }
-            list.isEmpty() -> GlassCard(Modifier.fillMaxWidth()) {
-                Text("Платежей пока нет", style = MaterialTheme.typography.titleSmall, color = c.text)
-                Text("Чек об оплате ЮKassa присылает на почту.", style = MaterialTheme.typography.bodySmall, color = c.text.copy(alpha = 0.7f))
-            }
-            else -> GlassGroup {
-                list.forEachIndexed { i, t ->
-                    if (i > 0) GroupDivider()
-                    Row(
-                        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        ToneCircleIcon(LiptonIcons.Receipt, c.text.copy(alpha = 0.8f), size = 32.dp, iconSize = 15.dp)
-                        Column(Modifier.weight(1f)) {
-                            Text(txKindRu(t), style = MaterialTheme.typography.titleSmall, color = c.text, maxLines = 1)
-                            val date = t.createdAt?.let { parseRfc3339(it) }?.let { ms ->
-                                val y = Calendar.getInstance().apply { timeInMillis = ms }.get(Calendar.YEAR)
-                                "${ruDayMonth(ms)} $y"
-                            }
-                            Text(
-                                listOfNotNull(date, t.cardLast4?.let { "•••• $it" }).joinToString(" · "),
-                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
-                                color = c.text.copy(alpha = 0.6f),
-                            )
-                        }
-                        Column(horizontalAlignment = Alignment.End) {
-                            Text(rubles(t.amountKopeks), style = MaterialTheme.typography.titleSmall.copy(fontFeatureSettings = TABULAR_NUMS), color = c.text)
-                            val (label, color) = when (t.status) {
-                                "succeeded" -> "оплачено" to c.stateText(AuroraTone.ON)
-                                "pending", "waiting_for_capture" -> "в обработке" to c.text.copy(alpha = 0.6f)
-                                else -> "не прошёл" to c.stateText(AuroraTone.OFF)
-                            }
-                            Text(label, style = MaterialTheme.typography.labelMedium, color = color)
-                        }
-                    }
-                }
-            }
-        }
-        if (!list.isNullOrEmpty()) {
-            Spacer(Modifier.height(12.dp))
-            Text("Чеки ЮKassa присылает на почту", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium), color = c.text.copy(alpha = 0.5f))
-        }
-    }
-}
-
-// ─── Способ оплаты и отвязка карты ───────────────────────────────────────────
-
-/**
- * Способ оплаты: карта •••• 4242 и «Отвязать карту» с кулдауном 24 ч после
- * новой привязки (для всех). Автопродление не переключается — только отвязка.
- * TODO(redesign): вид по new-combo-payment-method / -unlink (A4 ч.2).
- */
-@Composable
-fun PaymentMethodScreen(state: UiState, viewModel: MainViewModel, onBack: () -> Unit) {
-    val c = LiptonTheme.colors
-    val me = state.me
-    var confirm by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { viewModel.loadProfile() }
-    val hasCard = me?.hasCard == true
-    val unlinkAt = me?.cardUnlinkAvailableAt?.let { parseRfc3339(it) }
-    val now = System.currentTimeMillis()
-    val cooldown = unlinkAt != null && unlinkAt > now
-    val periodEnd = ruDayMonth(state.accountPeriodEnd)
-    val nextAt = ruDayMonth(me?.nextChargeAt) ?: periodEnd
-    val nextSum = me?.nextChargeKopeks?.let { rubles(it) }
-
-    SubPage("Способ оплаты", onBack) {
-        GlassCard(Modifier.fillMaxWidth()) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                ToneCircleIcon(LiptonIcons.Card, c.stateTone(AuroraTone.ON).a, size = 44.dp, iconSize = 20.dp)
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        if (hasCard) listOfNotNull(me?.cardBrand?.uppercase(), "•••• ${me?.cardLast4 ?: ""}").joinToString(" ") else "Карта не привязана",
-                        style = MaterialTheme.typography.titleMedium.copy(fontFeatureSettings = TABULAR_NUMS), color = c.text,
-                    )
-                    Text(
-                        when {
-                            hasCard && me?.cardExp != null -> "действует до ${me.cardExp}"
-                            hasCard -> "списания по подписке — с этой карты"
-                            else -> "Карта привяжется при следующей оплате картой"
-                        },
-                        style = MaterialTheme.typography.bodySmall, color = c.text.copy(alpha = 0.7f),
-                    )
-                }
-                if (hasCard) ToneChip("автопродление", c.stateTone(AuroraTone.ON).a, textColor = c.stateText(AuroraTone.ON), height = 22.dp)
-            }
-        }
-        if (hasCard) {
-            Spacer(Modifier.height(12.dp))
-            GlassCard(Modifier.fillMaxWidth()) {
-                Text(
-                    buildString {
-                        if (nextAt != null) {
-                            append("Если не отвязать, $nextAt подписка продлится")
-                            if (nextSum != null) append(" — $nextSum")
-                            append(". ")
-                        }
-                        append("После отвязки автопродление выключится")
-                        if (periodEnd != null) append(", подписка будет работать до $periodEnd")
-                        append(". Отвязать карту снова получится только через 24 часа после новой привязки.")
-                    },
-                    style = MaterialTheme.typography.bodySmall, color = c.text.copy(alpha = 0.72f),
-                )
-            }
-            Spacer(Modifier.height(20.dp))
-            if (cooldown) {
-                val at = unlinkAt ?: now
-                val cal = Calendar.getInstance().apply { timeInMillis = at }
-                Text(
-                    "Отвязать можно будет ${ruDayMonth(at)} в ${String.format(Locale.US, "%02d:%02d", cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE))} — через 24 часа после привязки",
-                    style = MaterialTheme.typography.bodySmall, color = c.stateText(AuroraTone.OFF),
-                )
-                Spacer(Modifier.height(12.dp))
-            }
-            PrimaryButton(
-                "Отвязать карту", onClick = { confirm = true }, tone = com.lipton.vpn.ui.components.ButtonTone.WARN,
-                enabled = !cooldown && state.profileBusy == null, loading = state.profileBusy == "card",
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-    }
-    if (confirm) {
-        ConfirmDialog(
-            title = "Отвязать карту?",
-            text = "Автопродление выключится" + (periodEnd?.let { ", подписка будет работать до $it" } ?: "") + ".",
-            warning = "Отвязать карту снова получится только через 24 часа после новой привязки.",
-            confirmText = "Отвязать карту",
-            icon = LiptonIcons.Card,
-            danger = true,
-            onConfirm = { viewModel.unlinkCard(); confirm = false },
-            onDismiss = { confirm = false },
-        )
-    }
-}
-
-// ─── Промокод ────────────────────────────────────────────────────────────────
-
-/**
- * «Ввести промокод»: проверка через /promo/validate; верный код запоминается и
- * уходит в ближайшую оплату. TODO(redesign): экран по new-scr-promo-play (A4 ч.2).
- */
-@Composable
-fun PromoDialog(viewModel: MainViewModel, onDismiss: () -> Unit, onApplied: () -> Unit) {
-    val c = LiptonTheme.colors
-    val scope = rememberCoroutineScope()
-    var code by remember { mutableStateOf(viewModel.pendingPromo.orEmpty()) }
-    var busy by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
-    ConfirmDialog(
-        title = "Промокод",
-        text = "Скидка или бонусные дни применятся к ближайшей оплате.",
-        confirmText = "Применить",
-        icon = LiptonIcons.Tag,
-        busy = busy,
-        onConfirm = {
-            if (code.isBlank()) { error = "Введите промокод"; return@ConfirmDialog }
-            busy = true; error = null
-            scope.launch {
-                try {
-                    val r = viewModel.validatePromo(code)
-                    if (r.valid) {
-                        val what = when {
-                            r.percentOff != null -> "скидка ${r.percentOff}%"
-                            r.bonusDays != null -> "+${r.bonusDays} ${pluralRu(r.bonusDays, "день", "дня", "дней")}"
-                            else -> "применится к оплате"
-                        }
-                        viewModel.showError("Промокод принят: $what")
-                        onApplied()
-                    } else {
-                        error = r.reason ?: "Промокод не подходит"
-                    }
-                } catch (e: Exception) {
-                    error = e.message ?: "Не удалось проверить промокод"
-                } finally {
-                    busy = false
-                }
-            }
-        },
-        onDismiss = onDismiss,
-        extra = {
-            Spacer(Modifier.height(14.dp))
-            val shape = RoundedCornerShape(14.dp)
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .height(48.dp)
-                    .clip(shape)
-                    .background(c.text.copy(alpha = 0.05f))
-                    .border(1.dp, if (error != null) c.warn.copy(alpha = 0.6f) else c.text.copy(alpha = 0.12f), shape)
-                    .padding(horizontal = 14.dp),
-                contentAlignment = Alignment.CenterStart,
-            ) {
-                if (code.isEmpty()) Text("Например, LIPTON10", style = MaterialTheme.typography.bodyLarge, color = c.text.copy(alpha = 0.4f))
-                BasicTextField(
-                    value = code,
-                    onValueChange = { code = it.uppercase(Locale.ROOT).take(32); error = null },
-                    singleLine = true,
-                    textStyle = MaterialTheme.typography.bodyLarge.copy(color = c.text, fontWeight = FontWeight.SemiBold),
-                    cursorBrush = SolidColor(c.stateTone(AuroraTone.ON).a),
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters, imeAction = ImeAction.Done),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-            error?.let {
-                Spacer(Modifier.height(8.dp))
-                Text(it, style = MaterialTheme.typography.bodySmall, color = c.stateText(AuroraTone.OFF))
-            }
-        },
-    )
-}

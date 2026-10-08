@@ -34,9 +34,12 @@ fun isBypassTariff(state: UiState): Boolean {
 
 /** Палитра свечения: выкл — рыжая, подключено — изумрудная, «Обход» — сине-фиолетовая. */
 fun auroraToneFor(state: UiState): AuroraTone {
+    // Гостевые 15 минут прошли — рыжее «нет доступа».
+    if (state.guest?.ended == true) return AuroraTone.NO_SUB
     // Пока аккаунт не подтянулся (accountStatus == null), но подписка в кэше есть — не пугаем рыжим.
+    // Во время «15 минут бесплатно» подписки нет, но VPN работает — свечение по состоянию VPN.
     val known = state.accountStatus != null
-    if (known && !hasActiveSubscription(state)) return AuroraTone.NO_SUB
+    if (known && !hasActiveSubscription(state) && state.dailyTrial == null) return AuroraTone.NO_SUB
     return when (state.status) {
         VpnStatus.CONNECTED -> if (isBypassTariff(state)) AuroraTone.BYPASS else AuroraTone.ON
         else -> AuroraTone.OFF
@@ -46,6 +49,9 @@ fun auroraToneFor(state: UiState): AuroraTone {
 /** Капсула срока в шапке: «24 дня» / «пробный период · 2 дня» / «истекла» / «Нет подписки». */
 @Composable
 fun SubscriptionCapsule(state: UiState) {
+    // Гостевой режим и «15 минут бесплатно» — обратный отсчёт вместо срока подписки.
+    val trial = state.guest ?: state.dailyTrial
+    if (trial != null) { TrialCapsule(trial); return }
     val days = daysLeft(state.accountPeriodEnd)
     // Цвет капсулы — как у свечения: подключено — изумруд, «Обход» — синий, выключено — рыжий.
     val tone = when (auroraToneFor(state)) {
