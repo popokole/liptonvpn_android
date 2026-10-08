@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Логотип Lipton VPN — «три наклонные полоски».
+  Перенесён из SVG макетов (viewBox 0 0 40 40, translate(3.2 0) skewX(-9), градиент #34F5A3 → #0FA968).
+  VectorDrawable не умеет skew, поэтому сдвиг уже применён к координатам контуров.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="40dp"
+    android:height="40dp"
+    android:viewportWidth="40"
+    android:viewportHeight="40">
+    <path
+        android:fillAlpha="1.0"
+        android:pathData="M12.791,7.000 L12.791,7.000 C14.282,7.000 15.300,8.209 15.064,9.700 L11.801,30.300 C11.565,31.791 10.164,33.000 8.673,33.000 L8.673,33.000 C7.182,33.000 6.165,31.791 6.401,30.300 L9.664,9.700 C9.900,8.209 11.300,7.000 12.791,7.000 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="10.091" android:startY="7.000"
+                android:endX="11.373" android:endY="33.000"
+                android:startColor="#FF34F5A3"
+                android:endColor="#FF0FA968" />
+        </aapt:attr>
+    </path>
+    <path
+        android:fillAlpha="0.82"
+        android:pathData="M19.891,19.000 L19.891,19.000 C21.382,19.000 22.399,20.209 22.163,21.700 L20.801,30.300 C20.565,31.791 19.164,33.000 17.673,33.000 L17.673,33.000 C16.182,33.000 15.165,31.791 15.401,30.300 L16.763,21.700 C16.999,20.209 18.400,19.000 19.891,19.000 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="17.191" android:startY="19.000"
+                android:endX="20.373" android:endY="33.000"
+                android:startColor="#FF34F5A3"
+                android:endColor="#FF0FA968" />
+        </aapt:attr>
+    </path>
+    <path
+        android:fillAlpha="0.62"
+        android:pathData="M29.841,13.000 L29.841,13.000 C31.332,13.000 32.350,14.209 32.113,15.700 L29.801,30.300 C29.565,31.791 28.164,33.000 26.673,33.000 L26.673,33.000 C25.182,33.000 24.165,31.791 24.401,30.300 L26.713,15.700 C26.950,14.209 28.350,13.000 29.841,13.000 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="27.141" android:startY="13.000"
+                android:endX="29.373" android:endY="33.000"
+                android:startColor="#FF34F5A3"
+                android:endColor="#FF0FA968" />
+        </aapt:attr>
+    </path>
+</vector>
