@@ -17,7 +17,6 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 private const val ALLOWED_DOMAIN = "sub.popokole.online"
-private const val TRIAL_URL      = "https://sub.popokole.online/rxB74qQu6gGg1JTt"
 
 class SubscriptionManager(private val settings: SettingsManager) {
 
@@ -164,28 +163,30 @@ class SubscriptionManager(private val settings: SettingsManager) {
         settings.saveSubscriptions(listOf(sub))
     }
 
-    // ─── Trial subscription ───────────────────────────────────────────────────
+    // ─── Пробный доступ из API (гостевой / «15 минут в день») ─────────────────
 
-    suspend fun getTrialSubscription(hwid: String, durationMinutes: Int): Subscription =
-        withContext(Dispatchers.IO) {
-            // Try to get a personalised URL from the trial API; fall back to hardcoded TRIAL_URL on any error
-            val subUrl = try {
-                val trialApiUrl = "https://sub.popokole.online/trial?hwid=$hwid&duration=${durationMinutes}m"
-                val req = Request.Builder()
-                    .url(trialApiUrl)
-                    .header("User-Agent", "LiptonVPN/${BuildConfig.VERSION_NAME} (Android; ${android.os.Build.MODEL})")
-                    .header("X-App-Name", "LiptonVPN")
-                    .header("X-App-Version", BuildConfig.VERSION_NAME)
-                    .header("X-Hwid", hwid)
-                    .build()
-                val resp = client.newCall(req).execute()
-                val body = resp.body?.string()?.trim() ?: ""
-                if (resp.isSuccessful && body.startsWith("http")) body else TRIAL_URL
-            } catch (_: Exception) {
-                TRIAL_URL
-            }
-            add(subUrl, isTrial = true)
-        }
+    /**
+     * Подписка из ответа нашего API (POST /guest/trial, /me/daily-trial): пробная,
+     * со сроком [expiresAtMs]. Заменяет список целиком: пробный доступ дают только
+     * без действующей подписки, а кэш истёкшей лишь путал бы выбор сервера.
+     * Ссылку выдал наш бэкенд, поэтому домен не ограничиваем — только https.
+     */
+    suspend fun addTrialFromApi(url: String, expiresAtMs: Long, name: String): Subscription {
+        val u = normalizeUrl(url)
+        val parsed = runCatching { java.net.URL(u) }.getOrNull()
+        if (parsed == null || parsed.protocol != "https") throw IllegalArgumentException("Неверная ссылка пробного доступа")
+        val (servers, userInfo) = fetchAndParse(u)
+        val sub = Subscription(
+            id       = UUID.randomUUID().toString(),
+            name     = name,
+            url      = u,
+            isTrial  = true,
+            servers  = servers,
+            userInfo = userInfo.copy(expire = expiresAtMs / 1000L),
+        )
+        settings.saveSubscriptions(listOf(sub))
+        return sub
+    }
 
     // ─── Ping ─────────────────────────────────────────────────────────────────
 

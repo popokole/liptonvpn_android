@@ -49,6 +49,15 @@ class SettingsManager(private val context: Context) {
         private val KEY_NOTIFICATIONS     = booleanPreferencesKey("notifications_enabled")
         private val KEY_SPLIT_APPS        = stringPreferencesKey("split_tunnel_apps")
 
+        // ─── Редизайн, волна 2 ──────────────────────────────────────────────────
+        private val KEY_SPLIT_MODE        = stringPreferencesKey("split_tunnel_mode")      // all | bypass
+        private val KEY_GUEST             = stringPreferencesKey("guest_session")          // JSON GuestStored
+        private val KEY_DAILY_TRIAL       = stringPreferencesKey("daily_trial_session")    // JSON TrialStored
+        private val KEY_BANNERS_DISMISSED = stringPreferencesKey("banners_dismissed")
+        private val KEY_DOMAIN_DATES      = stringPreferencesKey("bypass_domain_dates")    // домен → когда добавлен
+        private val KEY_VERBOSE_LOGS      = booleanPreferencesKey("verbose_logs")
+        private val MAP_LONG_TYPE  = object : TypeToken<Map<String, Long>>() {}.type
+
         private val SUB_TYPE       = object : TypeToken<List<Subscription>>() {}.type
         private val STR_LIST_TYPE  = object : TypeToken<List<String>>() {}.type
         private val MAP_BOOL_TYPE  = object : TypeToken<MutableMap<String, Boolean>>() {}.type
@@ -307,6 +316,86 @@ class SettingsManager(private val context: Context) {
         context.dataStore.edit { it[KEY_SPLIT_APPS] = gson.toJson(packages.distinct().sorted()) }
     }
 
+    /** Режим раздельного туннелирования (старые версии режим не хранили — выводим из списка). */
+    val splitTunnelModeFlow: Flow<SplitMode> = context.dataStore.data.map { prefs ->
+        val hasApps = !prefs[KEY_SPLIT_APPS].isNullOrBlank() && prefs[KEY_SPLIT_APPS] != "[]"
+        SplitMode.fromStored(prefs[KEY_SPLIT_MODE], hasApps)
+    }
+
+    suspend fun getSplitTunnelMode(): SplitMode = splitTunnelModeFlow.first()
+
+    suspend fun setSplitTunnelMode(mode: SplitMode) {
+        context.dataStore.edit { it[KEY_SPLIT_MODE] = mode.stored }
+    }
+
+    // ─── Гостевой доступ и «15 минут в день» ─────────────────────────────────
+
+    /** Пробная сессия: ссылка, до какого момента действует, сервер и когда можно снова. */
+    data class TrialStored(
+        val subscriptionUrl: String? = null,
+        val expiresAt: Long = 0L,
+        val minutes: Int = 15,
+        val serverName: String? = null,
+        val retryAt: Long = 0L,
+    )
+
+    suspend fun getGuestSession(): TrialStored? = readTrial(KEY_GUEST)
+    suspend fun setGuestSession(v: TrialStored?) = writeTrial(KEY_GUEST, v)
+    suspend fun getDailyTrial(): TrialStored? = readTrial(KEY_DAILY_TRIAL)
+    suspend fun setDailyTrial(v: TrialStored?) = writeTrial(KEY_DAILY_TRIAL, v)
+
+    private suspend fun readTrial(key: Preferences.Key<String>): TrialStored? {
+        val json = context.dataStore.data.first()[key] ?: return null
+        return try { gson.fromJson(json, TrialStored::class.java) } catch (_: Exception) { null }
+    }
+
+    private suspend fun writeTrial(key: Preferences.Key<String>, v: TrialStored?) {
+        context.dataStore.edit { if (v == null) it.remove(key) else it[key] = gson.toJson(v) }
+    }
+
+    // ─── Баннеры: закрытые пользователем (локально) ──────────────────────────
+
+    suspend fun getDismissedBanners(): Set<String> {
+        val json = context.dataStore.data.first()[KEY_BANNERS_DISMISSED] ?: return emptySet()
+        return try { (gson.fromJson<List<String>>(json, STR_LIST_TYPE) ?: emptyList()).toSet() } catch (_: Exception) { emptySet() }
+    }
+
+    suspend fun dismissBanner(id: String) {
+        context.dataStore.edit { prefs ->
+            val cur: List<String> = try {
+                prefs[KEY_BANNERS_DISMISSED]?.let { gson.fromJson<List<String>>(it, STR_LIST_TYPE) } ?: emptyList()
+            } catch (_: Exception) { emptyList() }
+            prefs[KEY_BANNERS_DISMISSED] = gson.toJson((cur + id).distinct().takeLast(200))
+        }
+    }
+
+    // ─── Свои домены: когда добавлен («Добавлен 6 октября») ──────────────────
+
+    val bypassDomainDatesFlow: Flow<Map<String, Long>> = context.dataStore.data.map { prefs ->
+        val json = prefs[KEY_DOMAIN_DATES] ?: return@map emptyMap()
+        try { gson.fromJson<Map<String, Long>>(json, MAP_LONG_TYPE) ?: emptyMap() } catch (_: Exception) { emptyMap() }
+    }
+
+    suspend fun setBypassDomainDate(domain: String, at: Long?) {
+        context.dataStore.edit { prefs ->
+            val cur: MutableMap<String, Long> = try {
+                prefs[KEY_DOMAIN_DATES]?.let { gson.fromJson<Map<String, Long>>(it, MAP_LONG_TYPE) }?.toMutableMap() ?: mutableMapOf()
+            } catch (_: Exception) { mutableMapOf() }
+            if (at == null) cur.remove(domain) else cur[domain] = at
+            prefs[KEY_DOMAIN_DATES] = gson.toJson(cur)
+        }
+    }
+
+    // ─── Подробные логи ядра (по просьбе поддержки) ──────────────────────────
+
+    val verboseLogsFlow: Flow<Boolean> = context.dataStore.data.map { it[KEY_VERBOSE_LOGS] == true }
+
+    suspend fun getVerboseLogs(): Boolean = context.dataStore.data.first()[KEY_VERBOSE_LOGS] == true
+
+    suspend fun setVerboseLogs(v: Boolean) {
+        context.dataStore.edit { it[KEY_VERBOSE_LOGS] = v }
+    }
+
     // ─── Reset ───────────────────────────────────────────────────────────────
 
     suspend fun reset() {
@@ -327,6 +416,9 @@ class SettingsManager(private val context: Context) {
             prefs.remove(KEY_HTTP_PORT)
             prefs.remove(KEY_AUTO_CONNECT)
             prefs.remove(KEY_SPLIT_APPS)
+            prefs.remove(KEY_SPLIT_MODE)
+            prefs.remove(KEY_DOMAIN_DATES)
+            prefs.remove(KEY_VERBOSE_LOGS)
         }
     }
 }

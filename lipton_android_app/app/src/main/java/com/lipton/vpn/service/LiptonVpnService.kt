@@ -17,6 +17,8 @@ import androidx.core.app.NotificationCompat
 import com.lipton.vpn.MainActivity
 import com.lipton.vpn.R
 import com.lipton.vpn.data.SettingsManager
+import com.lipton.vpn.data.SplitMode
+import com.lipton.vpn.data.excludedPackages
 import com.lipton.vpn.data.XrayConfigGenerator
 import com.lipton.vpn.data.model.Server
 import com.lipton.vpn.widget.LiptonWidget
@@ -69,6 +71,7 @@ class LiptonVpnService : VpnService() {
     private var tun2socksPipe:    ParcelFileDescriptor? = null
     private var currentServer:    Server?               = null
     private var splitTunnelApps:  List<String>          = emptyList()
+    private var splitTunnelMode:  SplitMode             = SplitMode.ALL
     private var trafficJob:       Job?                  = null
 
     var statusListener: ((VpnStatus) -> Unit)? = null
@@ -135,6 +138,7 @@ class LiptonVpnService : VpnService() {
                 val socksPort = settings.getSocksPort()
                 val httpPort = settings.getHttpPort()
                 splitTunnelApps = settings.getSplitTunnelApps()
+                splitTunnelMode = settings.getSplitTunnelMode()
 
                 val config = XrayConfigGenerator.generate(
                     server = server,
@@ -142,6 +146,7 @@ class LiptonVpnService : VpnService() {
                     httpPort = httpPort,
                     bypassRu = bypassRu,
                     bypassDomains = bypassDomains,
+                    verbose = settings.getVerboseLogs(),
                 )
 
                 val xrayBin = findXrayBinary()
@@ -217,8 +222,9 @@ class LiptonVpnService : VpnService() {
                 currentServer?.let { s ->
                     try { builder.addDisallowedApplication(packageName) } catch (_: Exception) {}
                 }
-                // Раздельное туннелирование: выбранные приложения идут мимо VPN
-                splitTunnelApps.filter { it != packageName }.forEach { pkg ->
+                // Раздельное туннелирование: в режиме «Выбранные мимо VPN» отмеченные
+                // приложения идут напрямую; в режиме «Все через VPN» список не применяется.
+                excludedPackages(splitTunnelMode, splitTunnelApps, packageName).forEach { pkg ->
                     try { builder.addDisallowedApplication(pkg) } catch (_: Exception) { /* приложение удалено */ }
                 }
             }

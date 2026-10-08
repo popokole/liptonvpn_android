@@ -208,7 +208,7 @@ fun SplitTunnelScreen(state: UiState, viewModel: MainViewModel, activity: Compon
     }
     // Применяем при уходе с экрана, только если список изменился.
     DisposableEffect(Unit) {
-        onDispose { if (latest != initial) viewModel.setSplitTunnelApps(latest.toList(), activity) }
+        onDispose { if (latest != initial) viewModel.setSplitTunnelApps(latest.toList()) }
     }
 
     SubPage("Раздельное туннелирование", onBack, scroll = false) {

@@ -13,6 +13,8 @@ object XrayConfigGenerator {
         httpPort: Int = 10809,
         bypassRu: Boolean = true,
         bypassDomains: List<String> = emptyList(),
+        // «Подробные логи» в профиле → info вместо warning (по просьбе поддержки).
+        verbose: Boolean = false,
     ): String {
         val outbound = when (server.protocol) {
             "vless"  -> vlessOutbound(server)
@@ -70,7 +72,7 @@ object XrayConfigGenerator {
         )
 
         val config = mapOf(
-            "log" to mapOf("loglevel" to "warning"),
+            "log" to mapOf("loglevel" to if (verbose) "info" else "warning"),
             "inbounds" to listOf(
                 mapOf(
                     "tag" to "socks",

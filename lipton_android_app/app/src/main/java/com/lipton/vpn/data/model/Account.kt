@@ -130,7 +130,23 @@ data class AppConfig(
     @SerializedName("tariffs")      val tariffs: List<Tariff> = emptyList(),
     @SerializedName("trial_days")   val trialDays: Long = 0,
     @SerializedName("free_sub_url") val freeSubUrl: String? = null,
-)
+    // ── Редизайн (поля только добавлены; у старого бэкенда их нет — значения по умолчанию) ──
+    // Гостевой доступ без регистрации: объект {enabled, minutes} и те же поля плоско.
+    @SerializedName("guest_trial")         val guestTrial: GuestTrialConfig? = null,
+    @SerializedName("trial_guest_enabled") val trialGuestEnabled: Boolean = false,
+    @SerializedName("trial_guest_minutes") val trialGuestMinutes: Int = 0,
+    // Пробный период после регистрации (дни).
+    @SerializedName("account_trial_days")  val accountTrialDays: Int? = null,
+    @SerializedName("support_bot")         val supportBot: String? = null,
+    @SerializedName("support_bot_url")     val supportBotUrl: String? = null,
+    @SerializedName("min_app_versions")    val minAppVersions: Map<String, String>? = null,
+) {
+    /** Гостевой доступ включён в админке (нет полей — выключен). */
+    val guestEnabled: Boolean get() = guestTrial?.enabled ?: trialGuestEnabled
+
+    /** Длительность гостевого доступа в минутах (по умолчанию 15). */
+    val guestMinutes: Int get() = (guestTrial?.minutes?.takeIf { it > 0 } ?: trialGuestMinutes.takeIf { it > 0 }) ?: 15
+}
 
 data class Tariff(
     @SerializedName("code")         val code: String = "",
@@ -144,6 +160,11 @@ data class TariffPeriod(
     @SerializedName("id")           val id: String = "",
     @SerializedName("days")         val days: Int = 0,
     @SerializedName("price_kopeks") val priceKopeks: Long = 0,
+)
+
+data class GuestTrialConfig(
+    @SerializedName("enabled") val enabled: Boolean = false,
+    @SerializedName("minutes") val minutes: Int = 0,
 )
 
 // GET /news
@@ -165,12 +186,18 @@ data class AiReply(
 )
 
 // GET /support/ai/dialog
-data class AiDialog(@SerializedName("messages") val messages: List<AiMessage> = emptyList())
+data class AiDialog(
+    @SerializedName("messages") val messages: List<AiMessage> = emptyList(),
+    @SerializedName("mode")     val mode: String? = null,   // auto | manual (отвечает оператор)
+    @SerializedName("id")       val id: String? = null,
+)
 
 data class AiMessage(
     @SerializedName("role")    val role: String = "",   // user | assistant
     @SerializedName("content") val content: String = "",
     @SerializedName("at")      val at: String? = null,
+    // Редизайн: id реплики — для «Помогло / Не помогло» (POST /support/ai/feedback).
+    @SerializedName("id")      val id: String? = null,
 )
 
 // ─── Профиль, устройства, статус серверов (редизайн A4) ─────────────────────

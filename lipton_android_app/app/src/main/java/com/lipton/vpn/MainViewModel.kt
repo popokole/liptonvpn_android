@@ -20,11 +20,17 @@ import androidx.lifecycle.viewModelScope
 import com.lipton.vpn.BuildConfig
 import com.lipton.vpn.R
 import com.lipton.vpn.data.ApiClient
+import com.lipton.vpn.data.BannerLogic
 import com.lipton.vpn.data.SettingsManager
+import com.lipton.vpn.data.SplitMode
+import com.lipton.vpn.data.maskIps
+import com.lipton.vpn.data.parseIsoMillis
 import com.lipton.vpn.data.SubscriptionManager
 import com.lipton.vpn.data.UpdateChecker
 import com.lipton.vpn.data.UpdateInfo
+import com.lipton.vpn.data.model.AppBanner
 import com.lipton.vpn.data.model.AppConfig
+import com.lipton.vpn.data.model.NotificationPrefs
 import com.lipton.vpn.data.model.ChangeCurrent
 import com.lipton.vpn.data.model.ChangeOption
 import com.lipton.vpn.data.model.DeviceItem
@@ -76,7 +82,6 @@ data class UiState(
     val themeMode:           AppTheme           = AppTheme.SYSTEM,
     val autoConnectOnLaunch: Boolean            = false,
     val logLines:            List<String>       = emptyList(),
-    val trialUsed:           Boolean            = false,
     val isFirstLaunch:       Boolean            = false,
     val updateInfo:          UpdateInfo?        = null,
     val downloadProgress:    Int?               = null,
@@ -109,7 +114,41 @@ data class UiState(
     val lastPingAt:          Long?              = null,    // когда последний раз пинговали серверы
     val notificationsEnabled: Boolean           = true,
     val splitTunnelApps:     List<String>       = emptyList(),
+    // ─── Редизайн, волна 2 ────────────────────────────────────────────────
+    val splitTunnelMode:     SplitMode          = SplitMode.ALL,
+    val guest:               TrialSession?      = null,    // гостевой режим без аккаунта (ended — 15 минут прошли)
+    val guestRetryAt:        Long?              = null,    // когда снова можно гостевой доступ (из 429)
+    val dailyTrial:          TrialSession?      = null,    // «15 минут бесплатно» для вошедших без подписки
+    val dailyTrialRetryAt:   Long?              = null,
+    val authEntry:           String?            = null,    // гость открыл вход: start | login | email | telegram
+    val loginSuccess:        Boolean            = false,   // экран «Вы вошли. Всё готово.»
+    val banners:             List<AppBanner>    = emptyList(),  // активные баннеры и экраны из админки
+    val notifPrefs:          NotificationPrefs? = null,    // GET /me/notifications; null — ручки нет
+    val bypassDomainDates:   Map<String, Long>  = emptyMap(),
+    val verboseLogs:         Boolean            = false,
+    val cardUnlinkAvailableAt: String?          = null,    // из ответа 409 card_unlink_cooldown
 )
+
+/**
+ * Пробная сессия (гостевая или «15 минут в день»): до какого момента действует
+ * (мс), сколько минут всего, сервер и ссылка подписки. ended — время вышло.
+ */
+data class TrialSession(
+    val expiresAt:       Long,
+    val minutes:         Int,
+    val serverName:      String? = null,
+    val subscriptionUrl: String? = null,
+    val ended:           Boolean = false,
+)
+
+/** Итог попытки включить пробный доступ. */
+sealed class TrialStart {
+    object Ok : TrialStart()
+    data class Used(val retryAt: Long?) : TrialStart()
+    object Disabled : TrialStart()
+    object HasSubscription : TrialStart()
+    data class Failed(val message: String) : TrialStart()
+}
 
 // Состояние экрана «Сменить тариф».
 // phase: choose (список вариантов) | confirm (предпросмотр + подтверждение) |
@@ -251,6 +290,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         watchConnectionStats()
         checkForUpdate()
         watchTrialExpiry()
+        watchTrialDeadlines()
     }
 
     private fun checkForUpdate() {
@@ -263,8 +303,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             state.first { !it.loading }
             while (true) {
                 val now = System.currentTimeMillis() / 1000L
+                val own = setOfNotNull(state.value.guest?.subscriptionUrl, state.value.dailyTrial?.subscriptionUrl)
                 val expired = state.value.subscriptions.filter { sub ->
-                    sub.isTrial && sub.userInfo.expire > 0L && sub.userInfo.expire < now
+                    sub.isTrial && sub.userInfo.expire > 0L && sub.userInfo.expire < now && sub.url !in own
                 }
                 if (expired.isNotEmpty()) {
                     expired.forEach { sub ->
@@ -458,7 +499,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val autostart       = settings.getAutostart()
             val themeMode       = settings.getThemeMode()
             val autoConnect     = settings.getAutoConnectOnLaunch()
-            val trialUsed       = settings.getTrialAdded()
+            val now             = System.currentTimeMillis()
+            val guestStored     = if (settings.getAuthTokens() == null) settings.getGuestSession() else null
+            val dailyStored     = settings.getDailyTrial()
             val firstLaunchDone = settings.getFirstLaunchDone()
             val hapticEnabled   = settings.getHapticEnabled()
             val authed          = settings.getAuthTokens() != null
@@ -484,7 +527,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     autostart           = autostart,
                     themeMode           = themeMode,
                     autoConnectOnLaunch = autoConnect,
-                    trialUsed           = trialUsed,
+                    guest               = guestStored?.takeIf { it.expiresAt > now && !it.subscriptionUrl.isNullOrBlank() }?.toSession(),
+                    guestRetryAt        = guestStored?.retryAt?.takeIf { it > now },
+                    dailyTrial          = dailyStored?.takeIf { authed && it.expiresAt > now }?.toSession(),
+                    dailyTrialRetryAt   = dailyStored?.retryAt?.takeIf { authed && it > now },
                     isFirstLaunch       = !firstLaunchDone,
                     logLines            = crashLines,
                     hapticEnabled       = hapticEnabled,
@@ -495,6 +541,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
             // Вошёл в аккаунт → тихо тянем актуальную подписку с сервера.
             if (authed) launch { syncAccountSubscription() }
+            // Конфиг нужен и до входа (кнопка «15 минут без регистрации»), баннеры — всем.
+            loadConfigIfNeeded()
+            loadBanners()
+            // Истёкшая гостевая сессия: подписку убираем, «когда снова» помним.
+            if (guestStored != null && guestStored.expiresAt <= now) {
+                launch { finishGuestStorage(guestStored) }
+            }
 
             // Background refresh + ping on startup
             if (subs.isNotEmpty()) {
@@ -652,13 +705,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    suspend fun getTrialSubscription(durationMinutes: Int) {
-        val hwid = settings.getHwid()
-        subManager.getTrialSubscription(hwid, durationMinutes)
-        settings.setTrialAdded(true)
-        _state.update { it.copy(trialUsed = true) }
-    }
-
     // ─── Аккаунт (вход + авто-подписка) ────────────────────────────────────────
 
     // Обёртки входа для LoginScreen. Кидают ApiException при ошибке.
@@ -668,11 +714,26 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     suspend fun authTgInit()                     = api.tgInit()
     suspend fun authTgPoll(linkToken: String)    = api.tgPoll(linkToken)
 
-    // Вызывать после успешного входа — переключает экран и тянет подписку.
+    // Вызывать после успешного входа — переключает экран («Вы вошли») и тянет подписку.
+    // Гостевая сессия при входе заканчивается: её подписка заменяется подпиской аккаунта.
     fun completeLogin() {
-        _state.update { it.copy(isAuthed = true) }
-        viewModelScope.launch { syncAccountSubscription() }
+        val guest = state.value.guest
+        _state.update { it.copy(isAuthed = true, loginSuccess = true, authEntry = null, guest = null) }
+        viewModelScope.launch {
+            if (guest != null) {
+                if (isVpnActive()) disconnect(getApplication())
+                removeSubscriptionsByUrl(guest.subscriptionUrl)
+                settings.setGuestSession(null)
+            }
+            syncAccountSubscription()
+            loadBanners()
+        }
     }
+
+    fun dismissLoginSuccess() = _state.update { it.copy(loginSuccess = false) }
+
+    /** Гость открыл вход или регистрацию (start | login | email | telegram); null — вернуться. */
+    fun openAuth(entry: String?) = _state.update { it.copy(authEntry = entry) }
 
     // Тянет /me/subscription. Если есть subscription_url — заводит/обновляет
     // единственную подписку. Если подписки нет — ставим флаг accountNoSub
@@ -729,9 +790,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     accountOverlay = null, accountTariffCode = null, accountCanceled = false,
                     me = null, devices = null, deviceLimit = null, devicesUsed = null,
                     subscriptionUrl = null, linkVersion = 0, linkUpdatedAt = null, profileBusy = null,
+                    dailyTrial = null, dailyTrialRetryAt = null, notifPrefs = null, cardUnlinkAvailableAt = null,
+                    loginSuccess = false,
                 )
             }
+            settings.setDailyTrial(null)
             resetTariffChange()
+            loadBanners()
         }
     }
 
@@ -750,6 +815,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
         refreshDevices()
         loadConfigIfNeeded()
+        loadNotificationPrefs()
     }
 
     fun refreshDevices() {
@@ -839,11 +905,26 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _state.update { it.copy(errorMessage = "Подписка отменена") }
     }
 
-    /** «Отвязать карту»: автопродление выключится, подписка работает до конца срока. */
-    fun unlinkCard() = profileAction("card") {
-        val res = api.deleteCard()
-        val w = res.warning
-        _state.update { it.copy(errorMessage = if (!w.isNullOrBlank()) w else "Карта отвязана, автопродление выключено") }
+    /**
+     * «Отвязать карту»: автопродление выключится, подписка работает до конца срока.
+     * 409 card_unlink_cooldown — карту привязали меньше 24 ч назад: запоминаем
+     * available_at, экран покажет, когда отвязка станет доступна.
+     */
+    fun unlinkCard(onDone: (Boolean) -> Unit = {}) = profileAction("card") {
+        try {
+            val res = api.deleteCard()
+            val w = res.warning
+            _state.update { it.copy(errorMessage = if (!w.isNullOrBlank()) w else "Карта отвязана, автопродление выключено", cardUnlinkAvailableAt = null) }
+            onDone(true)
+        } catch (e: ApiClient.ApiException) {
+            if (e.status == 409 && e.serverCode == "card_unlink_cooldown") {
+                _state.update { it.copy(cardUnlinkAvailableAt = e.availableAt ?: it.cardUnlinkAvailableAt, errorMessage = e.message) }
+                onDone(false)
+                return@profileAction
+            }
+            onDone(false)
+            throw e
+        }
         try {
             val me = api.getMe()
             _state.update { it.copy(me = me) }
@@ -864,17 +945,38 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { settings.setNotificationsEnabled(enabled) }
     }
 
-    /** Приложения мимо VPN. Если VPN включён — переподключаемся, чтобы правило применилось. */
-    fun setSplitTunnelApps(packages: List<String>, context: Context) {
+    /** Приложения мимо VPN. Применяются при следующем подключении (или «Переподключить»). */
+    fun setSplitTunnelApps(packages: List<String>) {
         _state.update { it.copy(splitTunnelApps = packages) }
-        viewModelScope.launch {
-            settings.setSplitTunnelApps(packages)
-            val st = state.value
-            if (st.status == LiptonVpnService.VpnStatus.CONNECTED) {
-                val id = st.activeServerId ?: st.subscriptions.flatMap { it.servers }.firstOrNull()?.id
-                if (id != null) connect(context, id)
-            }
-        }
+        viewModelScope.launch { settings.setSplitTunnelApps(packages) }
+    }
+
+    /** Режим: «Все через VPN» / «Выбранные мимо VPN». Применяется при следующем подключении. */
+    fun setSplitTunnelMode(mode: SplitMode) {
+        _state.update { it.copy(splitTunnelMode = mode) }
+        viewModelScope.launch { settings.setSplitTunnelMode(mode) }
+    }
+
+    /** Переподключиться к текущему серверу, чтобы применить настройки туннеля. */
+    fun reconnectIfConnected(context: Context) {
+        val st = state.value
+        if (st.status != LiptonVpnService.VpnStatus.CONNECTED) return
+        val id = st.activeServerId ?: st.subscriptions.flatMap { it.servers }.firstOrNull()?.id ?: return
+        connect(context, id)
+    }
+
+    fun setVerboseLogs(enabled: Boolean) {
+        _state.update { it.copy(verboseLogs = enabled) }
+        logAction("Подробные логи: ${if (enabled) "включены" else "выключены"} — применятся при следующем подключении")
+        viewModelScope.launch { settings.setVerboseLogs(enabled) }
+    }
+
+    /** Логи для поддержки: адреса замаскированы. */
+    fun logsForSupport(): String = maskIps(state.value.logLines.joinToString("\n"))
+
+    /** Отправить логи в чат поддержки (POST /support/ai/logs). */
+    suspend fun sendLogsToSupport(note: String = "Логи из приложения Android ${BuildConfig.VERSION_NAME}") {
+        api.aiLogs(logsForSupport().takeLast(60_000), note)
     }
 
     private fun activeServer(): Server? {
@@ -925,6 +1027,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { settings.newsReadFlow.collect { ids -> _news.update { it.copy(readIds = ids) } } }
         viewModelScope.launch { settings.notificationsFlow.collect { v -> _state.update { it.copy(notificationsEnabled = v) } } }
         viewModelScope.launch { settings.splitTunnelAppsFlow.collect { v -> _state.update { it.copy(splitTunnelApps = v) } } }
+        viewModelScope.launch { settings.splitTunnelModeFlow.collect { v -> _state.update { it.copy(splitTunnelMode = v) } } }
+        viewModelScope.launch { settings.bypassDomainDatesFlow.collect { v -> _state.update { it.copy(bypassDomainDates = v) } } }
+        viewModelScope.launch { settings.verboseLogsFlow.collect { v -> _state.update { it.copy(verboseLogs = v) } } }
         viewModelScope.launch {
             val hwid = settings.getHwid()
             _state.update { it.copy(hwid = hwid) }
@@ -1269,6 +1374,236 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _change.value = TariffChangeState()
     }
 
+    // ─── Гостевой доступ «15 минут без регистрации» ──────────────────────────
+
+    private fun SettingsManager.TrialStored.toSession() =
+        TrialSession(expiresAt = expiresAt, minutes = minutes, serverName = serverName, subscriptionUrl = subscriptionUrl)
+
+    private fun TrialSession.toStored(retryAt: Long? = null) = SettingsManager.TrialStored(
+        subscriptionUrl = subscriptionUrl, expiresAt = expiresAt, minutes = minutes,
+        serverName = serverName, retryAt = retryAt ?: 0L,
+    )
+
+    private fun isVpnActive(): Boolean = state.value.status == LiptonVpnService.VpnStatus.CONNECTED ||
+        state.value.status == LiptonVpnService.VpnStatus.CONNECTING
+
+    private suspend fun removeSubscriptionsByUrl(url: String?) {
+        val subs = settings.getSubscriptions()
+        val left = subs.filterNot { (url != null && it.url == url) || it.isTrial }
+        if (left.size != subs.size) settings.saveSubscriptions(left)
+    }
+
+    /**
+     * POST /guest/trial: ссылка на гостевой сервер на 15 минут, раз в день, без аккаунта.
+     * device_id — постоянный идентификатор приложения (тот же HWID, что уходит в подписку).
+     * Успех — подписка заводится как пробная, выбирается первый сервер, включается гостевой режим.
+     */
+    suspend fun startGuestTrial(): TrialStart {
+        val cfgMinutes = state.value.appConfig?.guestMinutes ?: 15
+        return try {
+            val res = api.guestTrial(settings.getHwid(), BuildConfig.VERSION_NAME)
+            val url = res.subscriptionUrl?.takeIf { it.isNotBlank() }
+                ?: return TrialStart.Failed("Сервер не выдал ссылку — попробуйте позже")
+            val expires = parseIsoMillis(res.expiresAt) ?: (System.currentTimeMillis() + cfgMinutes * 60_000L)
+            val sub = subManager.addTrialFromApi(url, expires, "Пробный доступ")
+            val first = sub.servers.firstOrNull()?.id
+            if (first != null) settings.setActiveServerId(first)
+            val session = TrialSession(expires, cfgMinutes, res.serverName, url)
+            settings.setGuestSession(session.toStored())
+            _state.update {
+                it.copy(
+                    guest = session, guestRetryAt = null, authEntry = null,
+                    subscriptions = settings.getSubscriptions(),
+                    activeServerId = first ?: it.activeServerId,
+                )
+            }
+            logAction("Пробный доступ на $cfgMinutes мин включён")
+            TrialStart.Ok
+        } catch (e: ApiClient.ApiException) {
+            when {
+                e.status == 429 || e.serverCode == "guest_trial_used" -> {
+                    val at = parseIsoMillis(e.retryAt)
+                    _state.update { it.copy(guestRetryAt = at) }
+                    settings.setGuestSession(SettingsManager.TrialStored(retryAt = at ?: 0L))
+                    TrialStart.Used(at)
+                }
+                e.status == 403 || e.serverCode == "guest_trial_disabled" || e.endpointMissing -> {
+                    // В админке выключили (или ручки ещё нет) — прячем гостевые кнопки.
+                    _state.update { st -> st.copy(appConfig = st.appConfig?.copy(guestTrial = com.lipton.vpn.data.model.GuestTrialConfig(false, cfgMinutes), trialGuestEnabled = false)) }
+                    TrialStart.Disabled
+                }
+                else -> TrialStart.Failed(e.message ?: "Не удалось включить пробный доступ")
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            TrialStart.Failed(e.message ?: "Не удалось включить пробный доступ")
+        }
+    }
+
+    /** 15 минут прошли: VPN отключается, гостевая подписка удаляется, главная показывает «15 минут прошли». */
+    private fun endGuest() {
+        val g = state.value.guest ?: return
+        if (g.ended) return
+        _state.update { it.copy(guest = g.copy(ended = true)) }
+        viewModelScope.launch {
+            if (isVpnActive()) disconnect(getApplication())
+            finishGuestStorage(g.toStored(state.value.guestRetryAt))
+            logAction("Пробный доступ закончился")
+        }
+    }
+
+    private suspend fun finishGuestStorage(stored: SettingsManager.TrialStored) {
+        removeSubscriptionsByUrl(stored.subscriptionUrl)
+        // Помним только «когда снова» (если известно из 429), ссылку и срок — забываем.
+        settings.setGuestSession(stored.retryAt.takeIf { it > System.currentTimeMillis() }?.let { SettingsManager.TrialStored(retryAt = it) })
+    }
+
+    /** Выйти из экрана «15 минут прошли» на приветствие (без входа). */
+    fun leaveGuest() {
+        _state.update { it.copy(guest = null, authEntry = null) }
+    }
+
+    // ─── «15 минут бесплатно» для вошедших без подписки ─────────────────────
+
+    /** POST /me/daily-trial → подписка на 15 минут; подключаемся сразу. */
+    fun startDailyTrial(context: Context) {
+        if (state.value.profileBusy != null) return
+        _state.update { it.copy(profileBusy = "daily") }
+        viewModelScope.launch {
+            val minutes = state.value.appConfig?.guestMinutes ?: 15
+            try {
+                val res = api.dailyTrial()
+                val url = res.subscriptionUrl?.takeIf { it.isNotBlank() } ?: throw ApiClient.ApiException("Сервер не выдал ссылку — попробуйте позже")
+                val expires = parseIsoMillis(res.expiresAt) ?: (System.currentTimeMillis() + minutes * 60_000L)
+                val sub = subManager.addTrialFromApi(url, expires, "15 минут бесплатно")
+                val first = sub.servers.firstOrNull()?.id
+                if (first != null) settings.setActiveServerId(first)
+                val session = TrialSession(expires, minutes, null, url)
+                settings.setDailyTrial(session.toStored())
+                _state.update {
+                    it.copy(
+                        dailyTrial = session, dailyTrialRetryAt = null, profileBusy = null,
+                        subscriptions = settings.getSubscriptions(), activeServerId = first ?: it.activeServerId,
+                    )
+                }
+                logAction("15 минут бесплатно: доступ включён")
+                if (first != null) handleConnectToggle(context)
+            } catch (e: ApiClient.ApiException) {
+                _state.update { it.copy(profileBusy = null) }
+                when {
+                    e.status == 409 || e.serverCode == "has_subscription" -> {
+                        _state.update { it.copy(errorMessage = "Подписка уже есть — обновляем данные") }
+                        syncAccountSubscription()
+                    }
+                    e.status == 429 || e.serverCode == "daily_trial_used" -> {
+                        val at = parseIsoMillis(e.retryAt)
+                        _state.update { it.copy(dailyTrialRetryAt = at, errorMessage = "Сегодня 15 минут уже были" + (at?.let { t -> " — снова ${com.lipton.vpn.data.ruWhen(t)}" } ?: "")) }
+                        settings.setDailyTrial(SettingsManager.TrialStored(retryAt = at ?: 0L))
+                    }
+                    e.code == "unauthorized" -> _state.update { it.copy(isAuthed = false) }
+                    else -> _state.update { it.copy(errorMessage = e.message ?: "Не удалось включить 15 минут") }
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _state.update { it.copy(profileBusy = null, errorMessage = e.message ?: "Не удалось включить 15 минут") }
+            }
+        }
+    }
+
+    private fun endDailyTrial() {
+        val d = state.value.dailyTrial ?: return
+        _state.update { it.copy(dailyTrial = null) }
+        viewModelScope.launch {
+            if (isVpnActive()) disconnect(getApplication())
+            removeSubscriptionsByUrl(d.subscriptionUrl)
+            settings.setDailyTrial(null)
+            _state.update { it.copy(errorMessage = "15 минут закончились — оформите подписку, чтобы продолжить") }
+            logAction("15 минут бесплатно закончились")
+            if (state.value.isAuthed) syncAccountSubscription()
+        }
+    }
+
+    /** Срок гостевой или дневной сессии: ждём ближайший и завершаем её. */
+    private fun watchTrialDeadlines() {
+        viewModelScope.launch {
+            state.map { st -> listOfNotNull(st.guest?.takeIf { !it.ended }?.expiresAt, st.dailyTrial?.expiresAt).minOrNull() }
+                .distinctUntilChanged()
+                .collectLatest { deadline ->
+                    if (deadline == null) return@collectLatest
+                    val wait = deadline - System.currentTimeMillis()
+                    if (wait > 0) delay(wait)
+                    checkTrialDeadlines()
+                }
+        }
+    }
+
+    /** Проверка сроков (и при возврате в приложение: delay не идёт, пока телефон спит). */
+    fun checkTrialDeadlines() {
+        val now = System.currentTimeMillis()
+        val st = state.value
+        st.guest?.let { if (!it.ended && now >= it.expiresAt) endGuest() }
+        st.dailyTrial?.let { if (now >= it.expiresAt) endDailyTrial() }
+    }
+
+    // ─── Баннеры и экраны из админки ─────────────────────────────────────────
+
+    /** GET /app/banners — с авторизацией, если вошли (таргетинг по аудитории). Ошибки тихие. */
+    fun loadBanners() {
+        viewModelScope.launch {
+            val list = try { api.getBanners(BuildConfig.VERSION_NAME) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { return@launch }
+            val dismissed = settings.getDismissedBanners()
+            _state.update { it.copy(banners = BannerLogic.active(list, dismissed, System.currentTimeMillis())) }
+        }
+    }
+
+    /** Закрыть баннер или экран (запоминается локально по id). Обязательное обновление не закрывается. */
+    fun dismissBanner(id: String) {
+        val b = state.value.banners.find { it.id == id } ?: return
+        _state.update { it.copy(banners = it.banners.filterNot { x -> x.id == id }) }
+        if (b.dismissible) viewModelScope.launch { settings.dismissBanner(id) }
+    }
+
+    // ─── Уведомления: три переключателя (GET/PUT /me/notifications) ──────────
+
+    fun loadNotificationPrefs() {
+        if (!state.value.isAuthed) return
+        viewModelScope.launch {
+            try {
+                val p = api.getNotificationPrefs()
+                _state.update { it.copy(notifPrefs = p, notificationsEnabled = p.paymentReminders) }
+                settings.setNotificationsEnabled(p.paymentReminders)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // ручки нет или сеть — остаётся локальный тумблер
+            }
+        }
+    }
+
+    /**
+     * Переключатель уведомлений: сразу в интерфейсе, затем PUT. Не вышло — откатываем.
+     * «Напоминания об оплате» заодно управляют локальными напоминаниями телефона.
+     */
+    fun updateNotificationPrefs(change: (NotificationPrefs) -> NotificationPrefs) {
+        val before = state.value.notifPrefs ?: return
+        val after = change(before)
+        _state.update { it.copy(notifPrefs = after, notificationsEnabled = after.paymentReminders) }
+        viewModelScope.launch {
+            settings.setNotificationsEnabled(after.paymentReminders)
+            try {
+                val saved = api.putNotificationPrefs(after)
+                _state.update { it.copy(notifPrefs = saved) }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _state.update { it.copy(notifPrefs = before, notificationsEnabled = before.paymentReminders, errorMessage = "Не удалось сохранить — попробуйте ещё раз") }
+                settings.setNotificationsEnabled(before.paymentReminders)
+            }
+        }
+    }
+
     // ─── Settings ─────────────────────────────────────────────────────────────
 
     fun setBypassRu(enabled: Boolean) {
@@ -1305,6 +1640,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             if (!current.contains(domain)) {
                 current.add(domain)
                 settings.saveBypassDomains(current)
+                settings.setBypassDomainDate(domain, System.currentTimeMillis())
             }
         }
     }
@@ -1314,6 +1650,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val current = settings.getBypassDomains().toMutableList()
             current.remove(domain)
             settings.saveBypassDomains(current)
+            settings.setBypassDomainDate(domain, null)
         }
     }
 
@@ -1334,6 +1671,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     bypassRu            = true,
                     bypassDomains       = emptyList(),
                     autoConnectOnLaunch = false,
+                    splitTunnelApps     = emptyList(),
+                    splitTunnelMode     = SplitMode.ALL,
+                    verboseLogs         = false,
                 )
             }
         }

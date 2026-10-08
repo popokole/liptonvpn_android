@@ -29,7 +29,14 @@ class ApiClient(private val settings: SettingsManager) {
         val status: Int = 0,
         val code: String = "",
         val serverCode: String = "",
-    ) : Exception(message)
+        // Когда можно повторить (429 guest_trial_used / daily_trial_used) и когда
+        // откроется действие (409 card_unlink_cooldown) — RFC 3339 из ответа.
+        val retryAt: String? = null,
+        val availableAt: String? = null,
+    ) : Exception(message) {
+        /** Ручки нет на этом бэкенде (ещё не выложена) — блок надо тихо скрыть. */
+        val endpointMissing: Boolean get() = isEndpointMissing(status)
+    }
 
     companion object {
         const val API_BASE = "https://liptonone.online"
@@ -76,24 +83,12 @@ class ApiClient(private val settings: SettingsManager) {
             resp.use { Resp(it.code, it.body?.string() ?: "") }
         }
 
-    private fun errMsg(r: Resp, fallback: String): String {
-        return try {
-            val obj = gson.fromJson(r.body, Map::class.java)
-            val err = obj?.get("error")
-            val msg = when (err) {
-                is Map<*, *> -> err["message"] as? String
-                else -> obj?.get("message") as? String
-            }
-            msg ?: fallback
-        } catch (_: Exception) { fallback }
-    }
+    private fun errMsg(r: Resp, fallback: String): String = parseApiError(r.body).message ?: fallback
 
-    private fun errCode(r: Resp): String {
-        return try {
-            val obj = gson.fromJson(r.body, Map::class.java)
-            val err = obj?.get("error")
-            (if (err is Map<*, *>) err["code"] as? String else null) ?: ""
-        } catch (_: Exception) { "" }
+    /** Исключение по ответу с ошибкой: текст, код сервера и даты из тела. */
+    private fun failure(r: Resp, fallback: String): ApiException {
+        val e = parseApiError(r.body)
+        return ApiException(e.message ?: fallback, r.status, serverCode = e.code, retryAt = e.retryAt, availableAt = e.availableAt)
     }
 
     private inline fun <reified T> parse(body: String): T = gson.fromJson(body, T::class.java)
@@ -142,7 +137,15 @@ class ApiClient(private val settings: SettingsManager) {
             if (ok) return authed(method, path, bodyObj, true)
             throw ApiException("Сессия истекла, войдите снова", 401, "unauthorized")
         }
-        if (r.status >= 400) throw ApiException(errMsg(r, "Ошибка ${r.status}"), r.status, serverCode = errCode(r))
+        if (r.status >= 400) throw failure(r, "Ошибка ${r.status}")
+        return r.body
+    }
+
+    /** Запрос с авторизацией, если вход выполнен, иначе — без неё (баннеры). */
+    private suspend fun optionalAuthed(method: String, path: String, bodyObj: Any?): String {
+        if (settings.getAuthTokens() != null) return authed(method, path, bodyObj)
+        val r = raw(method, path, bodyObj, null)
+        if (r.status >= 400) throw failure(r, "Ошибка ${r.status}")
         return r.body
     }
 
@@ -338,4 +341,103 @@ class ApiClient(private val settings: SettingsManager) {
 
     suspend fun getAiDialog(): AiDialog = parse(authed("GET", "/support/ai/dialog", null))
     suspend fun aiChat(message: String): AiReply = parse(authed("POST", "/support/ai", mapOf("message" to message)))
+
+    // «Помогло / Не помогло» под ответом ИИ.
+    suspend fun aiFeedback(messageId: String, helpful: Boolean) {
+        authed("POST", "/support/ai/feedback", mapOf("message_id" to messageId, "helpful" to helpful))
+    }
+
+    // «Позвать оператора»: диалог переходит в ручной режим.
+    suspend fun aiOperator(dialogId: String?) {
+        authed("POST", "/support/ai/operator", if (dialogId.isNullOrBlank()) emptyMap<String, Any>() else mapOf("dialog_id" to dialogId))
+    }
+
+    // Логи приложения в поддержку (IP маскируются до отправки).
+    suspend fun aiLogs(logs: String, note: String) {
+        authed("POST", "/support/ai/logs", mapOf("logs" to logs, "note" to note))
+    }
+
+    // ─── Гостевой доступ и 15 минут в день ──────────────────────────────────
+
+    // Без авторизации: 200 — ссылка и срок; 429 guest_trial_used (+retry_at); 403 guest_trial_disabled.
+    suspend fun guestTrial(deviceId: String, appVersion: String): GuestTrialResponse {
+        val r = raw("POST", "/guest/trial", mapOf(
+            "device_id" to deviceId,
+            "platform" to "android",
+            "app_version" to appVersion,
+        ), null)
+        if (r.status >= 400) throw failure(r, "Не удалось включить пробный доступ")
+        return parse(r.body)
+    }
+
+    // Вошедшим без подписки: 200 — ссылка и срок; 409 has_subscription; 429 daily_trial_used (+retry_at).
+    suspend fun dailyTrial(): DailyTrialResponse = parse(authed("POST", "/me/daily-trial", null))
+
+    // ─── Баннеры и экраны из админки ────────────────────────────────────────
+
+    suspend fun getBanners(version: String): List<AppBanner> {
+        val v = java.net.URLEncoder.encode(version, "UTF-8")
+        val body = optionalAuthed("GET", "/app/banners?platform=android&version=$v", null)
+        if (body.isBlank()) return emptyList()
+        return parse<BannersResponse>(body).banners.orEmpty()
+    }
+
+    // ─── Уведомления (три переключателя) ────────────────────────────────────
+
+    suspend fun getNotificationPrefs(): NotificationPrefs = parse(authed("GET", "/me/notifications", null))
+
+    suspend fun putNotificationPrefs(p: NotificationPrefs): NotificationPrefs {
+        val body = authed("PUT", "/me/notifications", p)
+        return if (body.isBlank()) p else try { parse(body) } catch (_: Exception) { p }
+    }
+
+    // ─── Смена и привязка почты ─────────────────────────────────────────────
+
+    // Код на новый адрес (тот же запрос, что при привязке почты).
+    suspend fun emailLinkRequestCode(email: String) {
+        authed("POST", "/auth/link/request-code", mapOf("type" to "email", "identifier" to email))
+    }
+
+    // Смена почты. Если адрес был у другого аккаунта, аккаунты объединяются и приходят
+    // токены «выжившего» — сохраняем их. true — токены заменены.
+    suspend fun changeEmail(newEmail: String, code: String): Boolean {
+        val body = authed("POST", "/auth/email/change", mapOf("new_email" to newEmail, "code" to code))
+        val pair = try { parse<TokenPair>(body) } catch (_: Exception) { null }
+        if (pair?.accessToken != null && pair.refreshToken != null) { saveTokens(pair); return true }
+        return false
+    }
+
+    // Привязка почты, если её ещё нет (вход был через Telegram).
+    suspend fun linkEmailVerify(email: String, code: String) {
+        authed("POST", "/auth/link/verify", mapOf("type" to "email", "identifier" to email, "code" to code))
+    }
+
+    // ─── База знаний ────────────────────────────────────────────────────────
+
+    suspend fun getFaq(): List<FaqEntry> {
+        val r = raw("GET", "/faq", null, null)
+        if (r.status >= 400) throw failure(r, "Не удалось загрузить базу знаний")
+        return parse<FaqList>(r.body).items.orEmpty()
+    }
+
+    // Статьи блога как база знаний. Ответ — массив (или объект с articles/items).
+    suspend fun getArticles(category: String? = null): List<ArticleSummary> {
+        val q = if (category.isNullOrBlank()) "" else "?category=" + java.net.URLEncoder.encode(category, "UTF-8")
+        val r = raw("GET", "/content/articles$q", null, null)
+        if (r.status >= 400) throw failure(r, "Не удалось загрузить статьи")
+        val el = com.google.gson.JsonParser.parseString(r.body.ifBlank { "[]" })
+        val arr = when {
+            el.isJsonArray -> el.asJsonArray
+            el.isJsonObject -> el.asJsonObject.let { o -> (o.get("articles") ?: o.get("items"))?.takeIf { it.isJsonArray }?.asJsonArray }
+            else -> null
+        } ?: return emptyList()
+        return arr.mapNotNull { runCatching { gson.fromJson(it, ArticleSummary::class.java) }.getOrNull() }
+            .filter { it.slug.isNotBlank() && it.title.isNotBlank() }
+    }
+
+    suspend fun getArticle(slug: String): ArticleDetail {
+        val r = raw("GET", "/content/articles/" + java.net.URLEncoder.encode(slug, "UTF-8"), null, null)
+        if (r.status >= 400) throw failure(r, "Не удалось открыть статью")
+        return parse(r.body)
+    }
 }
