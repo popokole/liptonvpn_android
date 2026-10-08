@@ -1103,7 +1103,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun pingLoop() {
         while (true) {
             val srv = activeServer()
-            val ms = if (srv != null) tcpPing(srv.address, srv.port) else null
+            val ms = if (srv != null) com.lipton.vpn.data.PingCalibration.shown(tcpPing(srv.address, srv.port)) else null
             if (ms != null) {
                 _stats.update { s -> s.copy(pingMs = ms, pingHistory = (s.pingHistory + ms).takeLast(120)) }
             }

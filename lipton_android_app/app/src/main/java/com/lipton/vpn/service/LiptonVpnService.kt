@@ -94,7 +94,19 @@ class LiptonVpnService : VpnService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_START -> {
-                val serverId = intent.getStringExtra(EXTRA_SERVER_ID) ?: return START_NOT_STICKY
+                // Запуск через startForegroundService: Android требует startForeground()
+                // в течение нескольких секунд, иначе ANR «не отвечает» — даже если
+                // ядро потом не стартует. Поэтому уведомление «Подключение…» — сразу.
+                try {
+                    startForeground(NOTIF_ID, buildNotification("Подключение…"))
+                } catch (e: Exception) {
+                    Log.e(TAG, "startForeground при запуске не удался", e)
+                }
+                val serverId = intent.getStringExtra(EXTRA_SERVER_ID)
+                if (serverId == null) {
+                    stopForeground(STOP_FOREGROUND_REMOVE)
+                    return START_NOT_STICKY
+                }
                 scope.launch { startVpnForServer(serverId) }
             }
             ACTION_STOP  -> scope.launch { stopVpn() }
@@ -110,9 +122,12 @@ class LiptonVpnService : VpnService() {
         val server = subs.flatMap { it.servers }.find { it.id == serverId } ?: run {
             Log.e(TAG, "Сервер не найден: $serverId")
             status = VpnStatus.ERROR
+            withContext(Dispatchers.Main) { stopForeground(STOP_FOREGROUND_REMOVE) }
             return
         }
         startVpn(server, settings)
+        // Не подключились (нет ядра, сбой TUN и т.п.) — убираем «Подключение…».
+        if (!isConnected) withContext(Dispatchers.Main) { stopForeground(STOP_FOREGROUND_REMOVE) }
     }
 
     suspend fun startVpn(server: Server, settings: SettingsManager) = withContext(Dispatchers.Main) {

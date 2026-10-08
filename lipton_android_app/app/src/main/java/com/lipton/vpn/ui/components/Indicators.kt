@@ -87,17 +87,17 @@ fun StatusDot(color: Color, modifier: Modifier = Modifier, size: Dp = 6.dp, glow
 /** Уровень шкалы пинга 0..4 (0 — нет данных). */
 fun pingLevel(ms: Long?): Int = when {
     ms == null || ms <= 0 -> 0
-    ms <= 60 -> 4
-    ms <= 100 -> 3
-    ms <= 160 -> 2
+    ms <= 100 -> 4
+    ms <= 170 -> 3
+    ms <= 250 -> 2
     else -> 1
 }
 
 /** Цвет пинга: быстро — акцент, средне — янтарный, медленно — оранжево-красный. */
 fun LiptonColors.pingColor(ms: Long?): Color = when {
     ms == null || ms <= 0 -> text.copy(alpha = 0.35f)
-    ms <= 100 -> if (isDark) Color(0xFF22E58A) else Color(0xFF0FA968)
-    ms <= 160 -> if (isDark) Color(0xFFFFB547) else Color(0xFFB86E00)
+    ms <= 250 -> if (isDark) Color(0xFF22E58A) else Color(0xFF0FA968) // зелёный до 250 (решение владельца)
+    ms <= 280 -> if (isDark) Color(0xFFFFB547) else Color(0xFFB86E00)
     else -> if (isDark) Color(0xFFFF8A3D) else Color(0xFFD9480F)
 }
 

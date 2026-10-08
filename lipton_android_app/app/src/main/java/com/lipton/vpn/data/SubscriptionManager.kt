@@ -210,7 +210,7 @@ class SubscriptionManager(private val settings: SettingsManager) {
             Socket().use { sock ->
                 sock.connect(java.net.InetSocketAddress(host, port), 3000)
             }
-            System.currentTimeMillis() - start
+            PingCalibration.shown(System.currentTimeMillis() - start)
         } catch (e: Exception) {
             null
         }
