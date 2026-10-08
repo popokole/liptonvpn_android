@@ -502,6 +502,7 @@ class LiptonVpnService : VpnService() {
     override fun onDestroy() {
         isConnected = false
         currentServerRemark = ""
+        connectedAt = 0L
         notifyWidgets()
         scope.cancel()
         val pid = tun2socksPid
