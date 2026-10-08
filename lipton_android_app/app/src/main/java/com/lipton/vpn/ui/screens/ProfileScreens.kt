@@ -73,7 +73,6 @@ import com.lipton.vpn.UiState
 import com.lipton.vpn.data.model.TxItem
 import com.lipton.vpn.service.LiptonVpnService.VpnStatus
 import com.lipton.vpn.ui.components.AuroraTone
-import com.lipton.vpn.ui.components.BypassDomainsScreen
 import com.lipton.vpn.ui.components.ConfirmDialog
 import com.lipton.vpn.ui.components.FlagCircle
 import com.lipton.vpn.ui.components.GhostButton
@@ -82,7 +81,6 @@ import com.lipton.vpn.ui.components.GlassGroup
 import com.lipton.vpn.ui.components.GroupDivider
 import com.lipton.vpn.ui.components.LiptonIcons
 import com.lipton.vpn.ui.components.LiptonSwitch
-import com.lipton.vpn.ui.components.LogsScreen
 import com.lipton.vpn.ui.components.PrimaryButton
 import com.lipton.vpn.ui.components.ScreenHorizontalPadding
 import com.lipton.vpn.ui.components.ToneChip

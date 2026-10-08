@@ -669,7 +669,6 @@ private fun HowTile(modifier: Modifier, icon: androidx.compose.ui.graphics.vecto
  */
 @Composable
 fun NotificationsScreen(state: UiState, viewModel: MainViewModel, onBack: () -> Unit) {
-    val c = LiptonTheme.colors
     LaunchedEffect(Unit) { viewModel.loadNotificationPrefs() }
     val p = state.notifPrefs
     ProfileSubPage(state, "Уведомления", onBack) {
