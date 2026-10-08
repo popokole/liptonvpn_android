@@ -219,4 +219,31 @@ object LiptonIcons {
     }
     val Close: ImageVector by lazy { stroke("close", 2f, "m6 6 12 12", "M18 6 6 18") }
     val Search: ImageVector by lazy { stroke("search", 1.8f, "M11 4a7 7 0 1 0 0 14a7 7 0 1 0 0-14z", "m20 20-4-4") }
+
+    // Вход, онбординг, подэкраны (волна 2: new-onb-*, new-scr-*)
+    val Browser: ImageVector by lazy { stroke("browser", 1.8f, "M3.5 5h17v14h-17z", "M3.5 9h17", "M7 7h.01", "M10 7h.01") }
+    val UserPlus: ImageVector by lazy {
+        stroke("user_plus", 1.8f, "M9 4a4 4 0 1 0 0 8a4 4 0 1 0 0-8z", "M2 21a7 7 0 0 1 14 0", "M19 8v6", "M16 11h6")
+    }
+    val External: ImageVector by lazy { stroke("external", 1.8f, "M14 4h6v6", "M20 4l-9 9", "M18 14v6H4V6h6") }
+    val Paperclip: ImageVector by lazy {
+        stroke("paperclip", 1.8f, "M20.5 11.5l-8.2 8.2a5 5 0 0 1-7.1-7.1l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7l-8.5 8.5a1.7 1.7 0 0 1-2.4-2.4l7.8-7.8")
+    }
+    val Headset: ImageVector by lazy {
+        stroke("headset", 1.8f, "M4 14v-2a8 8 0 0 1 16 0v2", "M4 14h3v6H5a1 1 0 0 1-1-1z", "M20 14h-3v6h2a1 1 0 0 0 1-1z")
+    }
+    val Sparkle: ImageVector by lazy {
+        stroke("sparkle", 1.8f, "M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z", "M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z")
+    }
+    val Plus: ImageVector by lazy { stroke("plus", 2f, "M12 5v14", "M5 12h14") }
+    val Percent: ImageVector by lazy {
+        stroke("percent", 1.8f, "M19 5 5 19", "M7 5a2 2 0 1 0 0 4a2 2 0 1 0 0-4z", "M17 15a2 2 0 1 0 0 4a2 2 0 1 0 0-4z")
+    }
+    val Megaphone: ImageVector by lazy {
+        stroke("megaphone", 1.8f, "M3 10v4h4l7 4V6l-7 4z", "M17 9a4 4 0 0 1 0 6", "M7 14l1.5 5h2.5l-1-5")
+    }
+    val Download: ImageVector by lazy { stroke("download", 1.8f, "M12 4v11", "m7 10 5 5 5-5", "M5 20h14") }
+    val Wifi: ImageVector by lazy {
+        stroke("contactless", 1.8f, "M8.5 8.5a5 5 0 0 1 0 7", "M12 6a8.5 8.5 0 0 1 0 12", "M15.5 3.5a12 12 0 0 1 0 17")
+    }
 }

@@ -50,6 +50,22 @@ internal fun DrawScope.softGlow(
     }
 }
 
+/** Мягкое свечение круга радиуса [radius] с центром [center] (точки, ручки, кольца). */
+internal fun DrawScope.softGlowCircle(color: Color, center: Offset, radius: Float, spread: Float, steps: Int = 6) {
+    if (color.alpha <= 0f || spread <= 0f) return
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        val blur = ((spread - 0.5f) / 0.57735f).coerceAtLeast(1f)
+        val paint = GlowPaint.get(color.toArgb(), blur)
+        drawIntoCanvas { canvas -> canvas.nativeCanvas.drawCircle(center.x, center.y, radius.coerceAtLeast(1f), paint) }
+        return
+    }
+    val a = color.alpha / steps * 1.6f
+    for (i in steps downTo 1) {
+        val s = spread * i / steps
+        drawCircle(color.copy(alpha = (a * (1f - (i - 1f) / steps)).coerceIn(0f, 1f)), radius = radius + s, center = center)
+    }
+}
+
 /** Кэш Paint с BlurMaskFilter: свечения перерисовываются каждый кадр анимаций. */
 private object GlowPaint {
     private val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)

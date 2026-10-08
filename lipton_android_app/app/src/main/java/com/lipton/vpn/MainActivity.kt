@@ -18,12 +18,14 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -32,8 +34,9 @@ import androidx.core.view.WindowCompat
 import androidx.lifecycle.lifecycleScope
 import com.lipton.vpn.service.LiptonNotificationHelper
 import com.lipton.vpn.ui.MainScreen
-import com.lipton.vpn.ui.OnboardingScreen
-import com.lipton.vpn.ui.auth.LoginScreen
+import com.lipton.vpn.ui.auth.AuthFlow
+import com.lipton.vpn.ui.auth.LoginSuccessScreen
+import com.lipton.vpn.ui.auth.authStepFor
 import com.lipton.vpn.ui.theme.LiptonTheme
 import com.lipton.vpn.ui.theme.ThemeRevealHost
 import com.lipton.vpn.ui.theme.isDark
@@ -112,22 +115,34 @@ class MainActivity : ComponentActivity() {
             LiptonTheme(appTheme = state.themeMode) {
                 ThemeRevealHost(currentTheme = state.themeMode, onApply = { viewModel.setThemeMode(it) }) {
                     Box(Modifier.fillMaxSize().background(LiptonTheme.colors.bg)) {
-                        when {
-                            // TODO(redesign): A2 — онбординг и вход по макетам new-onb-* (на свечении).
-                            !state.loading && state.isFirstLaunch ->
-                                Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
-                                    OnboardingScreen(onFinish = { viewModel.dismissFirstLaunch() })
-                                }
-                            !state.loading && !state.isAuthed ->
-                                Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
-                                    LoginScreen(vm = viewModel)
-                                }
-                            else ->
-                                MainScreen(
+                        // Корень: онбординг и вход → «Вы вошли» → приложение; гость — приложение без аккаунта.
+                        val root = when {
+                            state.loading -> Root.MAIN
+                            state.isAuthed && state.loginSuccess -> Root.SUCCESS
+                            state.isAuthed -> Root.MAIN
+                            state.guest != null && state.authEntry == null -> Root.MAIN
+                            else -> Root.AUTH
+                        }
+                        AnimatedContent(
+                            targetState = root,
+                            transitionSpec = { fadeIn(tween(320)) togetherWith fadeOut(tween(220)) },
+                            label = "root",
+                        ) { r ->
+                            when (r) {
+                                Root.AUTH -> AuthFlow(
+                                    state = state,
+                                    vm = viewModel,
+                                    activity = this@MainActivity,
+                                    start = authStepFor(state.authEntry),
+                                    onClose = if (state.guest != null) ({ viewModel.openAuth(null) }) else null,
+                                )
+                                Root.SUCCESS -> LoginSuccessScreen(state = state, onContinue = { viewModel.dismissLoginSuccess() })
+                                Root.MAIN -> MainScreen(
                                     state = state,
                                     viewModel = viewModel,
                                     activity = this@MainActivity,
                                 )
+                            }
                         }
                     }
                 }
@@ -160,7 +175,11 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         checkClipboard()
+        // Таймеры не идут, пока телефон спит: проверяем сроки пробного доступа при возврате.
+        viewModel.checkTrialDeadlines()
     }
+
+    private enum class Root { AUTH, SUCCESS, MAIN }
 
     private fun checkClipboard() {
         val cm = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return

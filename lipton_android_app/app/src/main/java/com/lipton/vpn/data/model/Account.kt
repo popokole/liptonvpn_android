@@ -154,6 +154,8 @@ data class Tariff(
     @SerializedName("period_days")  val periodDays: Int = 0,
     @SerializedName("price_kopeks") val priceKopeks: Long = 0,
     @SerializedName("periods")      val periods: List<TariffPeriod> = emptyList(),
+    // Лимит устройств тарифа (null — не задан в админке).
+    @SerializedName("device_limit") val deviceLimit: Int? = null,
 )
 
 data class TariffPeriod(

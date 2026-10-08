@@ -48,6 +48,10 @@ import com.lipton.vpn.data.model.TariffPeriod
 import kotlinx.coroutines.flow.MutableStateFlow
 import com.lipton.vpn.service.LiptonVpnService.VpnStatus
 import com.lipton.vpn.ui.MainScreen
+import com.lipton.vpn.ui.auth.AuthFlow
+import com.lipton.vpn.ui.auth.AuthStep
+import com.lipton.vpn.ui.auth.LoginSuccessScreen
+import com.lipton.vpn.data.model.GuestTrialConfig
 import com.lipton.vpn.ui.components.AuroraBackground
 import com.lipton.vpn.ui.components.AuroraLayout
 import com.lipton.vpn.ui.components.AuroraTone
@@ -89,6 +93,10 @@ import java.util.TimeZone
  *       --es screen home|servers|news|profile|components \
  *       --es theme dark|light|system --es state on|off|nosub|bypass
  *
+ * Онбординг и вход: screen = onb-welcome | onb-howto | onb-start | onb-login | onb-signup |
+ * onb-site-code | onb-email-code | onb-telegram | onb-trial | onb-success (state=noguest —
+ * гостевой доступ выключен в /config).
+ *
  * Тестовые данные: профиль, устройства, тарифы, статистика, новости, статус серверов
  * (адреса — из документационных диапазонов RFC 5737).
  */
@@ -116,6 +124,29 @@ class DesignPreviewActivity : ComponentActivity() {
                 ThemeRevealHost(currentTheme = theme, onApply = { theme = it }) {
                     if (screen == "components") {
                         ComponentsGallery(stateName)
+                    } else if (screen == "onb-success") {
+                        LoginSuccessScreen(state = fakeState(stateName, theme), onContinue = {})
+                    } else if (screen.startsWith("onb-")) {
+                        val step = when (screen) {
+                            "onb-howto" -> AuthStep.HOWTO
+                            "onb-start" -> AuthStep.START
+                            "onb-login", "onb-signup" -> AuthStep.LOGIN
+                            "onb-site-code" -> AuthStep.SITE_CODE
+                            "onb-email-code" -> AuthStep.EMAIL_CODE
+                            "onb-telegram" -> AuthStep.TELEGRAM
+                            "onb-trial" -> AuthStep.TRIAL
+                            else -> AuthStep.WELCOME
+                        }
+                        AuthFlow(
+                            state = UiState(loading = false, themeMode = theme, appConfig = fakeConfig.copy(guestTrial = GuestTrialConfig(stateName != "noguest", 15), supportBot = "@liptonvpn_bot")),
+                            vm = viewModel,
+                            activity = this,
+                            start = step,
+                            signupStart = screen == "onb-signup",
+                            newsFlow = remember { MutableStateFlow(fakeNews()) },
+                            previewEmail = "user@example.com",
+                            offline = true,
+                        )
                     } else {
                         val tab = LiptonTab.fromRoute(screen) ?: LiptonTab.HOME
                         MainScreen(
@@ -155,7 +186,7 @@ private val fakeConfig = AppConfig(
     tariffs = listOf(
         Tariff(code = "base", title = "Базовый", periodDays = 30, priceKopeks = 15900, periods = listOf(
             TariffPeriod("p30", 30, 15900), TariffPeriod("p90", 90, 39900), TariffPeriod("p365", 365, 119900),
-        )),
+        ), deviceLimit = 5),
         Tariff(code = "bypass", title = "Обход глушилок", periodDays = 30, priceKopeks = 49900, periods = listOf(
             TariffPeriod("b30", 30, 49900),
         )),
