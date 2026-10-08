@@ -29,10 +29,23 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.lipton.vpn.MainViewModel
+import com.lipton.vpn.NewsState
+import com.lipton.vpn.StatsState
 import com.lipton.vpn.UiState
+import com.lipton.vpn.data.TrafficLedger
+import com.lipton.vpn.data.model.AppConfig
+import com.lipton.vpn.data.model.DeviceItem
+import com.lipton.vpn.data.model.IpInfo
+import com.lipton.vpn.data.model.MeProfile
+import com.lipton.vpn.data.model.NewsItem
 import com.lipton.vpn.data.model.Server
+import com.lipton.vpn.data.model.ServerStatus
+import com.lipton.vpn.data.model.ServerStatusList
 import com.lipton.vpn.data.model.SubOverlay
 import com.lipton.vpn.data.model.Subscription
+import com.lipton.vpn.data.model.Tariff
+import com.lipton.vpn.data.model.TariffPeriod
+import kotlinx.coroutines.flow.MutableStateFlow
 import com.lipton.vpn.service.LiptonVpnService.VpnStatus
 import com.lipton.vpn.ui.MainScreen
 import com.lipton.vpn.ui.components.AuroraBackground
@@ -75,6 +88,9 @@ import java.util.TimeZone
  *   adb shell am start -n com.lipton.vpn/.debug.DesignPreviewActivity \
  *       --es screen home|servers|news|profile|components \
  *       --es theme dark|light|system --es state on|off|nosub|bypass
+ *
+ * Тестовые данные: профиль, устройства, тарифы, статистика, новости, статус серверов
+ * (адреса — из документационных диапазонов RFC 5737).
  */
 class DesignPreviewActivity : ComponentActivity() {
 
@@ -107,6 +123,8 @@ class DesignPreviewActivity : ComponentActivity() {
                             viewModel = viewModel,
                             activity = this,
                             startTab = tab,
+                            statsFlow = remember(stateName) { MutableStateFlow(fakeStats(stateName)) },
+                            newsFlow = remember { MutableStateFlow(fakeNews()) },
                         )
                     }
                 }
@@ -122,10 +140,69 @@ private fun isoIn(days: Int): String {
 
 // Адреса — из документационного диапазона TEST-NET-3 (RFC 5737), не реальные.
 private val fakeServers = listOf(
-    Server(id = "s1", protocol = "vless", address = "203.0.113.10", port = 443, remark = "🇩🇪 Германия · Франкфурт", ping = 42),
-    Server(id = "s2", protocol = "vless", address = "203.0.113.11", port = 443, remark = "🇳🇱 Нидерланды · Амстердам", ping = 58),
-    Server(id = "s3", protocol = "vless", address = "203.0.113.12", port = 443, remark = "🇫🇮 Финляндия · Хельсинки", ping = 71),
-    Server(id = "s4", protocol = "vless", address = "203.0.113.13", port = 443, remark = "⚖️ Авто-баланс", ping = 39),
+    Server(id = "s4", protocol = "vless", address = "203.0.113.13", port = 443, remark = "⚖️ Авто-баланс", ping = 38),
+    Server(id = "s1", protocol = "vless", address = "203.0.113.10", port = 443, remark = "🇩🇪 Быстрый сервер", ping = 41),
+    Server(id = "s2", protocol = "vless", address = "203.0.113.11", port = 443, remark = "🇩🇪 Германия · Франкфурт", ping = 42),
+    Server(id = "s3", protocol = "vless", address = "203.0.113.12", port = 443, remark = "🇳🇱 Нидерланды · Амстердам", ping = 142),
+)
+
+private val fakeBypassServers = listOf(
+    Server(id = "b1", protocol = "vless", address = "203.0.113.20", port = 443, remark = "🇩🇪 Обход · Германия", ping = 46),
+    Server(id = "b2", protocol = "vless", address = "203.0.113.21", port = 443, remark = "🇳🇱 Обход · Нидерланды", ping = 64),
+)
+
+private val fakeConfig = AppConfig(
+    tariffs = listOf(
+        Tariff(code = "base", title = "Базовый", periodDays = 30, priceKopeks = 15900, periods = listOf(
+            TariffPeriod("p30", 30, 15900), TariffPeriod("p90", 90, 39900), TariffPeriod("p365", 365, 119900),
+        )),
+        Tariff(code = "bypass", title = "Обход глушилок", periodDays = 30, priceKopeks = 49900, periods = listOf(
+            TariffPeriod("b30", 30, 49900),
+        )),
+    ),
+    trialDays = 3,
+)
+
+private fun fakeStats(name: String): StatsState {
+    val now = System.currentTimeMillis()
+    val days = mutableMapOf<String, LongArray>()
+    val gb = 1_000_000_000L
+    listOf(1.2, 0.9, 1.6, 1.1, 2.0, 1.0, 1.8).forEachIndexed { i, v ->
+        val key = TrafficLedger.dayKey(now - (6 - i) * 86_400_000L)
+        val total = (v * gb).toLong()
+        days[key] = longArrayOf(total * 8 / 9, total / 9)
+    }
+    val on = name == "on" || name == "bypass"
+    return StatsState(
+        connectedAt = if (on) now - (45 * 60 + 28) * 1000L else 0L,
+        downBps = if (on) 23_300_000 else 0, upBps = if (on) 3_100_000 else 0,
+        speedHistory = if (on) listOf(9, 12, 10, 15, 13, 17, 14, 19, 16, 21, 18, 23).map { it * 1_000_000L } else emptyList(),
+        pingMs = if (on) 42 else null,
+        pingHistory = if (on) listOf(41, 43, 40, 42, 44, 45, 43, 41, 42, 44, 42).map { it.toLong() } else emptyList(),
+        trafficDays = days,
+        ip = if (on) IpInfo(ip = "203.0.113.42", country = "Германия", countryCode = "DE", city = "Франкфурт")
+             else IpInfo(ip = "198.51.100.77", country = "Россия", countryCode = "RU", city = "Москва"),
+        ipViaVpn = on,
+        ipv6Available = true,
+    )
+}
+
+private fun fakeNews(): NewsState = NewsState(
+    items = listOf(
+        NewsItem("n1", "Смена тарифа прямо в приложении", "Сменить тариф или срок можно без поддержки: остаток подписки засчитывается, а на доплату — скидка 10%.", null, isoIn(-1)),
+        NewsItem("n2", "Временный «Обход глушилок»", "Подключите его на 30 дней поверх годовой или квартальной подписки — потом вернётся прежний тариф.", null, isoIn(-6)),
+        NewsItem("n3", "Вход по коду с сайта", "Без пароля: в кабинете на сайте откройте «Подключение» → «Получить код» и введите цифры в приложении.", null, isoIn(-14)),
+        NewsItem("n4", "Если VPN не подключается", "Нажмите «Обновить ссылку» в профиле или выберите «Авто-баланс» — он сам найдёт рабочий сервер.", null, isoIn(-26)),
+    ),
+    readIds = setOf("n3", "n4"),
+    status = ServerStatusList(
+        servers = listOf(
+            ServerStatus("Авто-баланс", null, "up"), ServerStatus("Быстрый сервер", "DE", "up"),
+            ServerStatus("Лучшая скорость", "DE", "up"), ServerStatus("Германия", "DE", "up"), ServerStatus("Нидерланды", "NL", "up"),
+        ),
+    ),
+    statusAt = System.currentTimeMillis() - 60_000L,
+    loadedAt = System.currentTimeMillis(),
 )
 
 private fun fakeState(name: String, theme: AppTheme): UiState {
@@ -134,17 +211,38 @@ private fun fakeState(name: String, theme: AppTheme): UiState {
         isAuthed = true,
         themeMode = theme,
         subscriptions = listOf(Subscription(id = "sub", url = "https://example.invalid/sub", servers = fakeServers)),
-        activeServerId = "s1",
+        activeServerId = "s4",
         accountStatus = "active",
         accountPeriodEnd = isoIn(24),
         accountTariffCode = "base",
+        appConfig = fakeConfig,
+        subscriptionUrl = "https://example.invalid/sub/4f9c2a7d8f3a",
+        linkVersion = 2,
+        linkUpdatedAt = isoIn(-7),
+        hwid = "hw-this",
+        lastPingAt = System.currentTimeMillis(),
+        autoConnectOnLaunch = true,
+        bypassDomains = listOf("example.org", "example.net", "example.com"),
+        me = MeProfile(
+            email = "user@example.com", telegramLinked = true, tgUsername = "user",
+            hasCard = true, cardLast4 = "4242", createdAt = isoIn(-210),
+            nextChargeKopeks = 15900, nextChargePeriodDays = 30, nextChargeAt = isoIn(24),
+        ),
+        devices = listOf(
+            DeviceItem(hwid = "hw-this", platform = "Android", model = "Pixel 8", updatedAt = isoIn(0)),
+            DeviceItem(hwid = "hw-2", platform = "Windows", model = "DESKTOP-7K2", updatedAt = isoIn(-1)),
+            DeviceItem(hwid = "hw-3", platform = "iOS", model = "iPhone 15", app = "Happ", updatedAt = isoIn(-5)),
+        ),
+        deviceLimit = 5,
     )
     return when (name) {
         "off" -> base.copy(status = VpnStatus.DISCONNECTED)
         "nosub" -> base.copy(status = VpnStatus.DISCONNECTED, accountStatus = "expired", accountNoSub = true)
         "bypass" -> base.copy(
             status = VpnStatus.CONNECTED,
-            accountOverlay = SubOverlay(tariffTitle = "Обход глушилок", until = isoIn(24), revertTariffTitle = "Базовый"),
+            accountTariffCode = "bypass",
+            subscriptions = listOf(Subscription(id = "sub", url = "https://example.invalid/sub", servers = fakeBypassServers + fakeServers)),
+            activeServerId = "b1",
         )
         else -> base.copy(status = VpnStatus.CONNECTED)
     }
