@@ -75,6 +75,7 @@ fun PrimaryButton(
     height: Dp = 56.dp,
     enabled: Boolean = true,
     loading: Boolean = false,
+    trailingIcon: ImageVector? = null,
 ) {
     val c = LiptonTheme.colors
     val source = remember { MutableInteractionSource() }
@@ -124,6 +125,9 @@ fun PrimaryButton(
             color = content,
             maxLines = 1,
         )
+        if (trailingIcon != null && !loading) {
+            Icon(trailingIcon, contentDescription = null, tint = content, modifier = Modifier.size(18.dp))
+        }
     }
 }
 

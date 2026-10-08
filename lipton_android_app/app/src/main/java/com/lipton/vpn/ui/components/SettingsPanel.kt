@@ -519,7 +519,7 @@ fun LiptonSwitch(checked: Boolean, onCheckedChange: ((Boolean) -> Unit)? = null)
 }
 
 @Composable
-private fun BypassDomainsScreen(
+internal fun BypassDomainsScreen(
     domains:  List<String>,
     onAdd:    (String) -> Unit,
     onRemove: (String) -> Unit,
