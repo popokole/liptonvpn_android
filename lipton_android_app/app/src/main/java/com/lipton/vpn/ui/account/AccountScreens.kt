@@ -2,6 +2,7 @@ package com.lipton.vpn.ui.account
 
 import android.content.Intent
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -28,6 +29,7 @@ import com.lipton.vpn.TariffChangeState
 import com.lipton.vpn.UiState
 import com.lipton.vpn.data.ApiClient
 import com.lipton.vpn.data.model.*
+import com.lipton.vpn.ui.components.tabBarBottomPadding
 import com.lipton.vpn.ui.theme.Green
 import com.lipton.vpn.ui.theme.Green3
 import com.lipton.vpn.ui.theme.LocalLiptonColors
@@ -163,18 +165,34 @@ private fun SmallBtn(text: String, modifier: Modifier, onClick: () -> Unit) {
 
 // ─── Общая шапка полноэкранных панелей ───────────────────────────────────────
 
+// onClose = null — экран встроен во вкладку (без «назад», прозрачный фон поверх свечения;
+// низ под капсулу навигации оставляет сам экран). Окно рисуется edge-to-edge, поэтому
+// отступы от статус-бара, навигации и клавиатуры — здесь.
 @Composable
-private fun SheetScaffold(title: String, onClose: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
+private fun SheetScaffold(title: String, onClose: (() -> Unit)?, content: @Composable ColumnScope.() -> Unit) {
     val lc = LocalLiptonColors.current
-    Column(Modifier.fillMaxSize().background(lc.bgDeep)) {
+    val embedded = onClose == null
+    Column(
+        Modifier.fillMaxSize()
+            .then(if (embedded) Modifier else Modifier.background(lc.bgDeep))
+            .windowInsetsPadding(
+                if (embedded) WindowInsets.statusBars
+                else WindowInsets.safeDrawing
+            ),
+    ) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(56.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("‹", fontSize = 30.sp, color = lc.textSecondary,
-                modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onClose).padding(horizontal = 8.dp))
-            Spacer(Modifier.width(6.dp))
-            Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = lc.textPrimary)
+            if (onClose != null) {
+                BackHandler(onBack = onClose)
+                Text("‹", fontSize = 30.sp, color = lc.textSecondary,
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onClose).padding(horizontal = 8.dp))
+                Spacer(Modifier.width(6.dp))
+            } else {
+                Spacer(Modifier.width(4.dp))
+            }
+            Text(title, fontSize = if (embedded) 28.sp else 18.sp, fontWeight = FontWeight.Bold, color = lc.textPrimary)
         }
         content()
     }
@@ -592,7 +610,7 @@ private fun ChangeResultBlock(ok: Boolean, text: String?, onAction: () -> Unit) 
 // ─── Экран новостей ──────────────────────────────────────────────────────────
 
 @Composable
-fun NewsScreen(vm: MainViewModel, onClose: () -> Unit) {
+fun NewsScreen(vm: MainViewModel, onClose: (() -> Unit)? = null) {
     val lc = LocalLiptonColors.current
     var loading by remember { mutableStateOf(true) }
     var items by remember { mutableStateOf<List<NewsItem>>(emptyList()) }
@@ -611,7 +629,11 @@ fun NewsScreen(vm: MainViewModel, onClose: () -> Unit) {
                 Text("Пока новостей нет", color = lc.textSecondary)
             }
             else -> LazyColumn(
-                Modifier.fillMaxSize().padding(16.dp),
+                Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(
+                    start = 16.dp, end = 16.dp, top = 16.dp,
+                    bottom = if (onClose == null) tabBarBottomPadding() else 16.dp,
+                ),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 items(items) { n ->

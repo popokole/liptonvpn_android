@@ -83,6 +83,7 @@ data class UiState(
     val accountPeriodEnd:    String?            = null,
     val accountNoSub:        Boolean            = false,   // вошёл, но подписки нет → предложить оплату
     val accountOverlay:      SubOverlay?        = null,    // действующий временный тариф («Обход» поверх «Базового»)
+    val accountTariffCode:   String?            = null,    // tariff_code из /me/subscription (цвет свечения «Обход»)
 )
 
 // Состояние экрана «Сменить тариф».
@@ -641,6 +642,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     accountPeriodEnd = me.currentPeriodEnd,
                     accountNoSub     = !hasSub,
                     accountOverlay   = me.overlay,
+                    accountTariffCode = me.tariffCode,
                     accountSyncing   = false,
                 )
             }
@@ -668,7 +670,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 it.copy(
                     isAuthed = false, subscriptions = emptyList(), activeServerId = null,
                     accountStatus = null, accountPeriodEnd = null, accountNoSub = false,
-                    accountOverlay = null,
+                    accountOverlay = null, accountTariffCode = null,
                 )
             }
             resetTariffChange()

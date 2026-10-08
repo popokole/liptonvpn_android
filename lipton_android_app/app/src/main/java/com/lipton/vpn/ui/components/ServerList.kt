@@ -30,6 +30,8 @@ fun ServerList(
     onPingAll:      () -> Unit,
     isTrialOnly:    Boolean = false,
     modifier:       Modifier = Modifier,
+    // Во вкладке «Серверы» список занимает всю высоту (Dp.Unspecified — без ограничения).
+    maxListHeight:  androidx.compose.ui.unit.Dp = 220.dp,
 ) {
     val lc = LocalLiptonColors.current
 
@@ -65,7 +67,7 @@ fun ServerList(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(max = 220.dp)
+                .heightIn(max = maxListHeight)
                 .clip(RoundedCornerShape(14.dp))
                 .background(lc.cardBg)
                 .border(1.dp, lc.cardBorder, RoundedCornerShape(14.dp))
