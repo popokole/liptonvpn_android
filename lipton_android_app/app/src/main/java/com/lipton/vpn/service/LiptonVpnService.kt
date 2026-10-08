@@ -42,6 +42,13 @@ class LiptonVpnService : VpnService() {
         @Volatile var currentServerRemark: String = ""
             private set
 
+        /** Когда поднят текущий туннель (System.currentTimeMillis()); 0 — не подключено. Таймер сессии на главной. */
+        @Volatile var connectedAt: Long = 0L
+            private set
+
+        /** Как часто дописывать трафик за день в DataStore. */
+        private const val TRAFFIC_FLUSH_MS = 10_000L
+
         init { System.loadLibrary("lipton_native") }
     }
 
@@ -61,6 +68,8 @@ class LiptonVpnService : VpnService() {
     private var tun2socksPid:     Int                   = 0
     private var tun2socksPipe:    ParcelFileDescriptor? = null
     private var currentServer:    Server?               = null
+    private var splitTunnelApps:  List<String>          = emptyList()
+    private var trafficJob:       Job?                  = null
 
     var statusListener: ((VpnStatus) -> Unit)? = null
     var logListener:    ((String)    -> Unit)? = null
@@ -125,6 +134,7 @@ class LiptonVpnService : VpnService() {
                 val bypassDomains = settings.getBypassDomains()
                 val socksPort = settings.getSocksPort()
                 val httpPort = settings.getHttpPort()
+                splitTunnelApps = settings.getSplitTunnelApps()
 
                 val config = XrayConfigGenerator.generate(
                     server = server,
@@ -172,6 +182,8 @@ class LiptonVpnService : VpnService() {
                 startForeground(NOTIF_ID, buildNotification(server.remark))
                 isConnected = true
                 currentServerRemark = server.remark
+                connectedAt = System.currentTimeMillis()
+                startTrafficLedger(settings)
                 notifyWidgets()
                 withContext(Dispatchers.Main) { status = VpnStatus.CONNECTED }
                 Log.i(TAG, "Подключено: ${server.remark}")
@@ -205,6 +217,10 @@ class LiptonVpnService : VpnService() {
                 currentServer?.let { s ->
                     try { builder.addDisallowedApplication(packageName) } catch (_: Exception) {}
                 }
+                // Раздельное туннелирование: выбранные приложения идут мимо VPN
+                splitTunnelApps.filter { it != packageName }.forEach { pkg ->
+                    try { builder.addDisallowedApplication(pkg) } catch (_: Exception) { /* приложение удалено */ }
+                }
             }
             .establish()
     }
@@ -222,7 +238,43 @@ class LiptonVpnService : VpnService() {
         stopSelf()
     }
 
+    // ─── Трафик по дням ──────────────────────────────────────────────────────
+    // Весь туннель проходит через ядро xray, а оно работает в процессе приложения,
+    // поэтому счётчики TrafficStats нашего uid = трафик через VPN (плюс немного
+    // запросов самого приложения). Приращения раз в 10 с дописываются в DataStore.
+
+    private fun startTrafficLedger(settings: SettingsManager) {
+        trafficJob?.cancel()
+        val uid = android.os.Process.myUid()
+        trafficJob = scope.launch(Dispatchers.IO) {
+            var lastRx = android.net.TrafficStats.getUidRxBytes(uid)
+            var lastTx = android.net.TrafficStats.getUidTxBytes(uid)
+            if (lastRx < 0 || lastTx < 0) return@launch   // счётчики недоступны
+            suspend fun flush() {
+                val rx = android.net.TrafficStats.getUidRxBytes(uid)
+                val tx = android.net.TrafficStats.getUidTxBytes(uid)
+                val dRx = (rx - lastRx).coerceAtLeast(0)
+                val dTx = (tx - lastTx).coerceAtLeast(0)
+                lastRx = rx; lastTx = tx
+                try {
+                    settings.addTraffic(com.lipton.vpn.data.TrafficLedger.dayKey(System.currentTimeMillis()), dRx, dTx)
+                } catch (_: Exception) {}
+            }
+            try {
+                while (isActive) {
+                    delay(TRAFFIC_FLUSH_MS)
+                    flush()
+                }
+            } finally {
+                withContext(NonCancellable) { flush() }
+            }
+        }
+    }
+
     private fun cleanupVpn() {
+        trafficJob?.cancel()
+        trafficJob = null
+        connectedAt = 0L
         // Kill tun2socks first and wait for it to die — it holds a dup'd TUN fd.
         // Only after the process exits are its fds closed, allowing vpnInterface.close()
         // to release the last reference to the TUN device and remove the system key icon.

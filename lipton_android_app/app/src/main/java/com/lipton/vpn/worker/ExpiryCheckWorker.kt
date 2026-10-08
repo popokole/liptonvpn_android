@@ -10,6 +10,8 @@ class ExpiryCheckWorker(ctx: Context, params: WorkerParameters) : CoroutineWorke
 
     override suspend fun doWork(): Result {
         val settings = SettingsManager(applicationContext)
+        // Профиль → Приложение → «Уведомления»: выключены — молчим.
+        if (!settings.getNotificationsEnabled()) return Result.success()
         LiptonNotificationHelper.ensureChannels(applicationContext)
         val now = System.currentTimeMillis() / 1000L
         settings.getSubscriptions().filter { it.userInfo.expire > 0L }.forEach { sub ->

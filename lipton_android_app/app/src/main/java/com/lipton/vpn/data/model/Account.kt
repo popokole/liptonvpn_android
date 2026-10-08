@@ -28,6 +28,13 @@ data class MeSubscription(
     @SerializedName("devices_used")       val devicesUsed: Int? = null,
     // Действующий «временный тариф» (например, «Обход глушилок» поверх «Базового»), иначе null.
     @SerializedName("overlay")            val overlay: SubOverlay? = null,
+    // Эффективный лимит устройств (нет поля — лимит неизвестен).
+    @SerializedName("device_limit")       val deviceLimit: Int? = null,
+    // Версия ссылки подписки: её же шлём в POST /me/subscription/relink как expected_version.
+    @SerializedName("link_version")       val linkVersion: Int = 0,
+    @SerializedName("link_updated_at")    val linkUpdatedAt: String? = null,
+    @SerializedName("link_rotating")      val linkRotating: Boolean = false,
+    @SerializedName("canceled")           val canceled: Boolean = false,
 )
 
 data class SubOverlay(
@@ -97,6 +104,11 @@ data class TxItem(
     @SerializedName("status")         val status: String = "",
     @SerializedName("failure_reason") val failureReason: String? = null,
     @SerializedName("created_at")     val createdAt: String? = null,
+    // Поля B3 (пока могут не приходить — тогда null).
+    @SerializedName("tariff_title")   val tariffTitle: String? = null,
+    @SerializedName("period_days")    val periodDays: Int? = null,
+    @SerializedName("method")         val method: String? = null,
+    @SerializedName("card_last4")     val cardLast4: String? = null,
 )
 
 // POST /payments/checkout
@@ -159,4 +171,81 @@ data class AiMessage(
     @SerializedName("role")    val role: String = "",   // user | assistant
     @SerializedName("content") val content: String = "",
     @SerializedName("at")      val at: String? = null,
+)
+
+// ─── Профиль, устройства, статус серверов (редизайн A4) ─────────────────────
+
+// GET /me. Старые поля (avatar, card_last4, …) есть всегда; новые (tg_username,
+// tg_photo_url, card_*, next_charge_*) — с бэкенда редизайна, до выкладки — null.
+data class MeProfile(
+    @SerializedName("email")                    val email: String? = null,
+    @SerializedName("telegram_linked")          val telegramLinked: Boolean = false,
+    @SerializedName("avatar")                   val avatar: String? = null,       // data:image/…;base64,…
+    @SerializedName("has_card")                 val hasCard: Boolean = false,
+    @SerializedName("card_last4")               val cardLast4: String? = null,
+    @SerializedName("auto_renew")               val autoRenew: Boolean = false,
+    @SerializedName("created_at")               val createdAt: String? = null,
+    @SerializedName("tg_username")              val tgUsername: String? = null,   // без «@»
+    @SerializedName("tg_photo_url")             val tgPhotoUrl: String? = null,
+    @SerializedName("card_brand")               val cardBrand: String? = null,
+    @SerializedName("card_exp")                 val cardExp: String? = null,
+    @SerializedName("card_unlink_available_at") val cardUnlinkAvailableAt: String? = null,
+    @SerializedName("next_charge_at")           val nextChargeAt: String? = null,
+    @SerializedName("next_charge_kopeks")       val nextChargeKopeks: Long? = null,
+    @SerializedName("next_charge_period_days")  val nextChargePeriodDays: Int? = null,
+    @SerializedName("next_charge_tariff_title") val nextChargeTariffTitle: String? = null,
+)
+
+// GET /me/devices
+data class DevicesResponse(
+    @SerializedName("devices")      val devices: List<DeviceItem>? = null,
+    @SerializedName("device_limit") val deviceLimit: Int? = null,
+)
+
+data class DeviceItem(
+    @SerializedName("hwid")       val hwid: String = "",
+    @SerializedName("platform")   val platform: String? = null,   // iOS, Android, Windows…
+    @SerializedName("os_version") val osVersion: String? = null,
+    @SerializedName("model")      val model: String? = null,
+    @SerializedName("app")        val app: String? = null,        // приложение по User-Agent
+    @SerializedName("created_at") val createdAt: String? = null,
+    @SerializedName("updated_at") val updatedAt: String? = null,  // последняя загрузка подписки
+)
+
+// GET /status/servers (публичная, кэш 60 с)
+data class ServerStatusList(
+    @SerializedName("servers")    val servers: List<ServerStatus>? = null,
+    @SerializedName("updated_at") val updatedAt: String? = null,
+    @SerializedName("stale")      val stale: Boolean = false,
+)
+
+data class ServerStatus(
+    @SerializedName("name")    val name: String = "",
+    @SerializedName("country") val country: String? = null,   // ISO: DE, NL…
+    @SerializedName("status")  val status: String = "unknown", // up | down | unknown
+)
+
+// GET /ipcheck — как сайты видят исходящий адрес.
+data class IpInfo(
+    @SerializedName("ip")           val ip: String = "",
+    @SerializedName("country")      val country: String? = null,
+    @SerializedName("country_code") val countryCode: String? = null,
+    @SerializedName("city")         val city: String? = null,
+    @SerializedName("org")          val org: String? = null,
+    @SerializedName("flag")         val flag: String? = null,
+)
+
+// POST /promo/validate
+data class PromoResult(
+    @SerializedName("valid")       val valid: Boolean = false,
+    @SerializedName("reason")      val reason: String? = null,
+    @SerializedName("kind")        val kind: String? = null,
+    @SerializedName("percent_off") val percentOff: Int? = null,
+    @SerializedName("bonus_days")  val bonusDays: Int? = null,
+)
+
+// DELETE /payments/card
+data class CardUnlinkResult(
+    @SerializedName("status")  val status: String = "",
+    @SerializedName("warning") val warning: String? = null,
 )

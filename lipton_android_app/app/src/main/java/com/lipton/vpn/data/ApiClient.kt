@@ -13,6 +13,8 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
+import java.net.InetSocketAddress
+import java.net.Proxy
 import java.util.concurrent.TimeUnit
 
 // Клиент бэкенда Lipton (liptonone.online). Токены хранит в SettingsManager
@@ -193,7 +195,98 @@ class ApiClient(private val settings: SettingsManager) {
         return parse(r.body)
     }
 
-    suspend fun deleteCard() { authed("DELETE", "/payments/card", null) }
+    // Отвязка карты. 409 + Retry-After — кулдаун 24 ч после новой привязки (текст — от сервера).
+    suspend fun deleteCard(): CardUnlinkResult =
+        authed("DELETE", "/payments/card", null).let { if (it.isBlank()) CardUnlinkResult() else parse(it) }
+
+    // ─── Профиль, ссылка, устройства (редизайн) ─────────────────────────────
+
+    suspend fun getMe(): MeProfile = parse(authed("GET", "/me", null))
+
+    suspend fun getDevices(): DevicesResponse = parse(authed("GET", "/me/devices", null))
+
+    suspend fun revokeDevice(hwid: String) {
+        authed("POST", "/me/devices/revoke", mapOf("hwid" to hwid))
+    }
+
+    // «Отвязать все»: освобождает все места, ссылка не меняется (кулдаун — на сервере).
+    suspend fun revokeAllDevices() {
+        authed("POST", "/me/devices/revoke-all", null)
+    }
+
+    // «Обновить ссылку»: ответ — тот же View, что у /me/subscription, уже с новой ссылкой.
+    // expectedVersion — link_version, которую видел пользователь (защита от двойного нажатия).
+    suspend fun relinkSubscription(expectedVersion: Int?): MeSubscription =
+        parse(authed("POST", "/me/subscription/relink",
+            if (expectedVersion != null && expectedVersion > 0) mapOf("expected_version" to expectedVersion) else emptyMap<String, Any>()))
+
+    // Отмена подписки: сразу, остаток не возвращается, карта удаляется.
+    suspend fun cancelSubscription() {
+        authed("POST", "/me/subscription/cancel", mapOf("confirm" to true))
+    }
+
+    suspend fun validatePromo(code: String): PromoResult =
+        parse(authed("POST", "/promo/validate", mapOf("code" to code)))
+
+    // ─── Статус серверов и «как сайты видят вас» (публичные) ────────────────
+
+    suspend fun getServerStatus(): ServerStatusList {
+        val r = raw("GET", "/status/servers", null, null)
+        if (r.status >= 400) throw ApiException(errMsg(r, "Не удалось получить статус серверов"), r.status)
+        return parse(r.body)
+    }
+
+    // Само приложение исключено из туннеля, поэтому при подключённом VPN адрес
+    // «как его видят сайты» спрашиваем через локальный SOCKS ядра (socksPort).
+    suspend fun ipCheck(socksPort: Int?): IpInfo = withContext(Dispatchers.IO) {
+        val c = if (socksPort != null) {
+            client.newBuilder()
+                .proxy(Proxy(Proxy.Type.SOCKS, InetSocketAddress("127.0.0.1", socksPort)))
+                .connectTimeout(8, TimeUnit.SECONDS)
+                .readTimeout(8, TimeUnit.SECONDS)
+                .build()
+        } else client
+        val req = Request.Builder()
+            .url("$API_BASE/ipcheck")
+            .header("Accept", "application/json")
+            .header("User-Agent", ua())
+            .header("X-Platform", "android")
+            .get()
+            .build()
+        val body = try {
+            c.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) throw ApiException("Ошибка ${resp.code}", resp.code)
+                resp.body?.string() ?: ""
+            }
+        } catch (e: IOException) {
+            throw ApiException("Нет соединения с сервером — проверьте интернет", code = "network")
+        }
+        parse<IpInfo>(body)
+    }
+
+    // Проверка соединения: ответ Cloudflare /cdn-cgi/trace (ip, loc, colo…) — через
+    // SOCKS ядра, если VPN включён. Ключи и значения — как в ответе («ip=…»).
+    suspend fun cloudflareTrace(socksPort: Int?): Map<String, String> = withContext(Dispatchers.IO) {
+        val c = if (socksPort != null) {
+            client.newBuilder()
+                .proxy(Proxy(Proxy.Type.SOCKS, InetSocketAddress("127.0.0.1", socksPort)))
+                .connectTimeout(8, TimeUnit.SECONDS)
+                .readTimeout(8, TimeUnit.SECONDS)
+                .build()
+        } else client
+        val req = Request.Builder().url("https://www.cloudflare.com/cdn-cgi/trace").header("User-Agent", ua()).get().build()
+        try {
+            c.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) return@use emptyMap()
+                (resp.body?.string() ?: "").lines().mapNotNull { line ->
+                    val i = line.indexOf('=')
+                    if (i <= 0) null else line.substring(0, i).trim() to line.substring(i + 1).trim()
+                }.toMap()
+            }
+        } catch (e: IOException) {
+            throw ApiException("Нет ответа — проверьте интернет", code = "network")
+        }
+    }
 
     // ─── Оплата ─────────────────────────────────────────────────────────────
 

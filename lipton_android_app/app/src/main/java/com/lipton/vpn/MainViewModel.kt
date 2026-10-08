@@ -24,16 +24,26 @@ import com.lipton.vpn.data.SettingsManager
 import com.lipton.vpn.data.SubscriptionManager
 import com.lipton.vpn.data.UpdateChecker
 import com.lipton.vpn.data.UpdateInfo
+import com.lipton.vpn.data.model.AppConfig
 import com.lipton.vpn.data.model.ChangeCurrent
 import com.lipton.vpn.data.model.ChangeOption
+import com.lipton.vpn.data.model.DeviceItem
+import com.lipton.vpn.data.model.MeProfile
+import com.lipton.vpn.data.model.MeSubscription
+import com.lipton.vpn.data.model.PromoResult
+import com.lipton.vpn.data.model.Server
 import com.lipton.vpn.data.model.SubOverlay
 import com.lipton.vpn.data.model.Subscription
 import com.lipton.vpn.data.model.displayName
 import com.lipton.vpn.service.LiptonVpnService
 import com.lipton.vpn.ui.theme.AppTheme
 import com.lipton.vpn.util.HapticManager
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.io.File
@@ -84,6 +94,21 @@ data class UiState(
     val accountNoSub:        Boolean            = false,   // вошёл, но подписки нет → предложить оплату
     val accountOverlay:      SubOverlay?        = null,    // действующий временный тариф («Обход» поверх «Базового»)
     val accountTariffCode:   String?            = null,    // tariff_code из /me/subscription (цвет свечения «Обход»)
+    val accountCanceled:     Boolean            = false,
+    // ─── Профиль (редизайн A4) ────────────────────────────────────────────
+    val me:                  MeProfile?         = null,    // GET /me
+    val devices:             List<DeviceItem>?  = null,    // GET /me/devices; null — ещё не загружены
+    val deviceLimit:         Int?               = null,
+    val devicesUsed:         Int?               = null,
+    val appConfig:           AppConfig?         = null,    // GET /config: тарифы и сроки
+    val subscriptionUrl:     String?            = null,
+    val linkVersion:         Int                = 0,
+    val linkUpdatedAt:       String?            = null,
+    val hwid:                String?            = null,    // HWID этого телефона («это устройство»)
+    val profileBusy:         String?            = null,    // relink | revoke:<hwid> | revoke_all | cancel | card
+    val lastPingAt:          Long?              = null,    // когда последний раз пинговали серверы
+    val notificationsEnabled: Boolean           = true,
+    val splitTunnelApps:     List<String>       = emptyList(),
 )
 
 // Состояние экрана «Сменить тариф».
@@ -113,6 +138,20 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _state = MutableStateFlow(UiState())
     val state: StateFlow<UiState> = _state.asStateFlow()
+
+    private val _stats = MutableStateFlow(StatsState())
+    val stats: StateFlow<StatsState> = _stats.asStateFlow()
+
+    private val _news = MutableStateFlow(NewsState())
+    val news: StateFlow<NewsState> = _news.asStateFlow()
+
+    /** Срок, выбранный на главной («Купить»), — экран оплаты откроется сразу на нём. */
+    var paymentPreselectPeriod: String? = null
+    /** Проверенный промокод — уйдёт в ближайший checkout. */
+    var pendingPromo: String? = null
+        private set
+
+    private var ipJob: Job? = null
 
     private val _change = MutableStateFlow(TariffChangeState())
     val changeState: StateFlow<TariffChangeState> = _change.asStateFlow()
@@ -208,6 +247,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     init {
         loadInitialData()
         observeSettings()
+        observeExtras()
+        watchConnectionStats()
         checkForUpdate()
         watchTrialExpiry()
     }
@@ -480,7 +521,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     val freshSubs = settings.getSubscriptions()
                     _state.update { it.copy(pinging = true) }
                     freshSubs.forEach { sub -> subManager.pingAll(sub.id) }
-                    _state.update { it.copy(pinging = false) }
+                    _state.update { it.copy(pinging = false, lastPingAt = System.currentTimeMillis()) }
                 }
             }
         }
@@ -597,7 +638,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             _state.update { it.copy(pinging = true) }
             subManager.pingAll(subId)
-            _state.update { it.copy(pinging = false) }
+            _state.update { it.copy(pinging = false, lastPingAt = System.currentTimeMillis()) }
+        }
+    }
+
+    /** «Пинг» на вкладке «Серверы»: все подписки разом. */
+    fun pingAllServers() {
+        if (state.value.pinging) return
+        viewModelScope.launch {
+            _state.update { it.copy(pinging = true) }
+            settings.getSubscriptions().forEach { sub -> try { subManager.pingAll(sub.id) } catch (_: Exception) {} }
+            _state.update { it.copy(pinging = false, lastPingAt = System.currentTimeMillis()) }
         }
     }
 
@@ -636,16 +687,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             if (hasSub) {
                 try { subManager.syncFromAccount(url!!) } catch (_: Exception) { /* оффлайн — оставляем кэш */ }
             }
-            _state.update {
-                it.copy(
-                    accountStatus    = me.status,
-                    accountPeriodEnd = me.currentPeriodEnd,
-                    accountNoSub     = !hasSub,
-                    accountOverlay   = me.overlay,
-                    accountTariffCode = me.tariffCode,
-                    accountSyncing   = false,
-                )
-            }
+            _state.update { applySubscriptionView(it, me).copy(accountNoSub = !hasSub, accountSyncing = false) }
+            loadProfile()
         } catch (e: ApiClient.ApiException) {
             if (e.code == "unauthorized") {
                 // сессия умерла — на экран входа
@@ -657,6 +700,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun refreshAccount() { viewModelScope.launch { syncAccountSubscription() } }
+
+    private fun applySubscriptionView(st: UiState, me: MeSubscription): UiState = st.copy(
+        accountStatus     = me.status,
+        accountPeriodEnd  = me.currentPeriodEnd,
+        accountOverlay    = me.overlay,
+        accountTariffCode = me.tariffCode,
+        accountCanceled   = me.canceled,
+        subscriptionUrl   = me.subscriptionUrl,
+        linkVersion       = me.linkVersion,
+        linkUpdatedAt     = me.linkUpdatedAt,
+        devicesUsed       = me.devicesUsed ?: st.devicesUsed,
+        deviceLimit       = me.deviceLimit ?: st.deviceLimit,
+    )
 
     fun logoutAccount() {
         viewModelScope.launch {
@@ -670,12 +726,352 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 it.copy(
                     isAuthed = false, subscriptions = emptyList(), activeServerId = null,
                     accountStatus = null, accountPeriodEnd = null, accountNoSub = false,
-                    accountOverlay = null, accountTariffCode = null,
+                    accountOverlay = null, accountTariffCode = null, accountCanceled = false,
+                    me = null, devices = null, deviceLimit = null, devicesUsed = null,
+                    subscriptionUrl = null, linkVersion = 0, linkUpdatedAt = null, profileBusy = null,
                 )
             }
             resetTariffChange()
         }
     }
+
+    // ─── Профиль: /me, устройства, ссылка, отмена, карта (редизайн A4) ────────
+
+    /** Профиль, устройства и тарифы. Ошибки тихие — блоки просто остаются пустыми. */
+    fun loadProfile() {
+        if (!state.value.isAuthed) return
+        viewModelScope.launch {
+            try {
+                val me = api.getMe()
+                _state.update { it.copy(me = me) }
+            } catch (e: ApiClient.ApiException) {
+                if (e.code == "unauthorized") _state.update { it.copy(isAuthed = false) }
+            } catch (_: Exception) {}
+        }
+        refreshDevices()
+        loadConfigIfNeeded()
+    }
+
+    fun refreshDevices() {
+        if (!state.value.isAuthed) return
+        viewModelScope.launch {
+            try {
+                val d = api.getDevices()
+                _state.update { it.copy(devices = d.devices ?: emptyList(), deviceLimit = d.deviceLimit ?: it.deviceLimit) }
+            } catch (_: Exception) {}
+        }
+    }
+
+    fun loadConfigIfNeeded() {
+        if (state.value.appConfig != null) return
+        viewModelScope.launch {
+            try {
+                val cfg = api.getConfig()
+                _state.update { it.copy(appConfig = cfg) }
+            } catch (_: Exception) {}
+        }
+    }
+
+    private fun profileAction(tag: String, block: suspend () -> Unit) {
+        if (state.value.profileBusy != null) return
+        _state.update { it.copy(profileBusy = tag) }
+        viewModelScope.launch {
+            try {
+                block()
+            } catch (e: ApiClient.ApiException) {
+                if (e.code == "unauthorized") _state.update { it.copy(isAuthed = false) }
+                _state.update { it.copy(errorMessage = e.message) }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _state.update { it.copy(errorMessage = e.message ?: "Не получилось, попробуйте ещё раз") }
+            } finally {
+                _state.update { it.copy(profileBusy = null) }
+            }
+        }
+    }
+
+    fun revokeDevice(hwid: String) = profileAction("revoke:$hwid") {
+        api.revokeDevice(hwid)
+        _state.update { st -> st.copy(devices = st.devices?.filterNot { it.hwid == hwid }, errorMessage = "Устройство отвязано") }
+        refreshDevices()
+    }
+
+    fun revokeAllDevices() = profileAction("revoke_all") {
+        api.revokeAllDevices()
+        _state.update { it.copy(devices = emptyList(), errorMessage = "Все устройства отвязаны — подключите их заново") }
+        refreshDevices()
+    }
+
+    /**
+     * «Обновить ссылку»: старая ссылка и все устройства на ней отключатся.
+     * Новую ссылку сразу подтягиваем на этот телефон и, если VPN был включён,
+     * переподключаемся к тому же серверу.
+     */
+    fun relinkSubscription(context: Context) = profileAction("relink") {
+        val oldActive = activeServer()?.displayName()
+        val res = api.relinkSubscription(state.value.linkVersion.takeIf { it > 0 })
+        val url = res.subscriptionUrl
+        if (!url.isNullOrBlank()) {
+            try { subManager.syncFromAccount(url) } catch (_: Exception) {}
+        }
+        val servers = settings.getSubscriptions().flatMap { it.servers }
+        val next = servers.find { it.displayName() == oldActive } ?: servers.firstOrNull()
+        if (next != null) settings.setActiveServerId(next.id)
+        _state.update {
+            applySubscriptionView(it, res).copy(
+                activeServerId = next?.id ?: it.activeServerId,
+                errorMessage = "Ссылка обновлена — подключите другие устройства заново",
+            )
+        }
+        if (next != null && state.value.status == LiptonVpnService.VpnStatus.CONNECTED) connect(context, next.id)
+        refreshDevices()
+    }
+
+    /** Отмена подписки: заканчивается сразу, остаток не возвращается, карта удаляется. */
+    fun cancelSubscription(context: Context) = profileAction("cancel") {
+        api.cancelSubscription()
+        if (state.value.status == LiptonVpnService.VpnStatus.CONNECTED ||
+            state.value.status == LiptonVpnService.VpnStatus.CONNECTING) {
+            disconnect(context)
+        }
+        syncAccountSubscription()
+        _state.update { it.copy(errorMessage = "Подписка отменена") }
+    }
+
+    /** «Отвязать карту»: автопродление выключится, подписка работает до конца срока. */
+    fun unlinkCard() = profileAction("card") {
+        val res = api.deleteCard()
+        val w = res.warning
+        _state.update { it.copy(errorMessage = if (!w.isNullOrBlank()) w else "Карта отвязана, автопродление выключено") }
+        try {
+            val me = api.getMe()
+            _state.update { it.copy(me = me) }
+        } catch (_: Exception) {}
+    }
+
+    /** Проверка промокода; валидный запоминается до ближайшей оплаты. */
+    suspend fun validatePromo(code: String): PromoResult {
+        val res = api.validatePromo(code.trim())
+        pendingPromo = if (res.valid) code.trim() else null
+        return res
+    }
+
+    fun clearPendingPromo() { pendingPromo = null }
+
+    fun setNotificationsEnabled(enabled: Boolean) {
+        _state.update { it.copy(notificationsEnabled = enabled) }
+        viewModelScope.launch { settings.setNotificationsEnabled(enabled) }
+    }
+
+    /** Приложения мимо VPN. Если VPN включён — переподключаемся, чтобы правило применилось. */
+    fun setSplitTunnelApps(packages: List<String>, context: Context) {
+        _state.update { it.copy(splitTunnelApps = packages) }
+        viewModelScope.launch {
+            settings.setSplitTunnelApps(packages)
+            val st = state.value
+            if (st.status == LiptonVpnService.VpnStatus.CONNECTED) {
+                val id = st.activeServerId ?: st.subscriptions.flatMap { it.servers }.firstOrNull()?.id
+                if (id != null) connect(context, id)
+            }
+        }
+    }
+
+    private fun activeServer(): Server? {
+        val all = state.value.subscriptions.flatMap { it.servers }
+        return all.find { it.id == state.value.activeServerId } ?: all.firstOrNull()
+    }
+
+    // ─── Новости и статус серверов ───────────────────────────────────────────
+
+    fun loadNews(force: Boolean = false) {
+        val n = _news.value
+        if (n.loading) return
+        val now = System.currentTimeMillis()
+        if (!force && n.loadedAt > 0 && now - n.loadedAt < 5 * 60_000L) return
+        _news.update { it.copy(loading = true, error = null) }
+        viewModelScope.launch {
+            var err: String? = null
+            val items = try { api.getNews().items } catch (e: Exception) { err = e.message; null }
+            val status = try { api.getServerStatus() } catch (_: Exception) { null }
+            val at = System.currentTimeMillis()
+            _news.update {
+                it.copy(
+                    items = items ?: it.items,
+                    status = status ?: it.status,
+                    statusAt = if (status != null) at else it.statusAt,
+                    loading = false,
+                    loadedAt = at,
+                    error = if (items == null) (err ?: "Не удалось загрузить новости") else null,
+                )
+            }
+        }
+    }
+
+    fun markNewsRead(id: String) {
+        if (id.isBlank() || id in _news.value.readIds) return
+        viewModelScope.launch { settings.markNewsRead(listOf(id)) }
+    }
+
+    fun markAllNewsRead() {
+        val ids = _news.value.items.map { it.id }.filter { it.isNotBlank() }
+        viewModelScope.launch { settings.markNewsRead(ids) }
+    }
+
+    // ─── Живая статистика главной ────────────────────────────────────────────
+
+    private fun observeExtras() {
+        viewModelScope.launch { settings.trafficDaysFlow.collect { d -> _stats.update { it.copy(trafficDays = d) } } }
+        viewModelScope.launch { settings.newsReadFlow.collect { ids -> _news.update { it.copy(readIds = ids) } } }
+        viewModelScope.launch { settings.notificationsFlow.collect { v -> _state.update { it.copy(notificationsEnabled = v) } } }
+        viewModelScope.launch { settings.splitTunnelAppsFlow.collect { v -> _state.update { it.copy(splitTunnelApps = v) } } }
+        viewModelScope.launch {
+            val hwid = settings.getHwid()
+            _state.update { it.copy(hwid = hwid) }
+        }
+        viewModelScope.launch {
+            state.first { !it.loading }
+            loadNews()
+        }
+    }
+
+    /** Подключено → таймер, скорость (раз в секунду) и пинг (раз в 30 с); смена состояния → «как видят сайты». */
+    private fun watchConnectionStats() {
+        viewModelScope.launch {
+            state.map { it.status }.distinctUntilChanged().collectLatest { st ->
+                when (st) {
+                    LiptonVpnService.VpnStatus.CONNECTED -> {
+                        val since = LiptonVpnService.connectedAt.takeIf { it > 0 } ?: System.currentTimeMillis()
+                        _stats.update { it.copy(connectedAt = since, speedHistory = emptyList(), pingHistory = emptyList(), pingMs = null) }
+                        refreshIpInfo(delayMs = 1500)
+                        coroutineScope {
+                            launch { speedLoop() }
+                            launch { pingLoop() }
+                        }
+                    }
+                    else -> {
+                        _stats.update { it.copy(connectedAt = 0L, downBps = 0L, upBps = 0L, speedHistory = emptyList(), pingMs = null) }
+                        if (st == LiptonVpnService.VpnStatus.DISCONNECTED || st == LiptonVpnService.VpnStatus.ERROR) {
+                            refreshIpInfo(delayMs = 600)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private suspend fun speedLoop() {
+        val uid = android.os.Process.myUid()
+        var lastRx = android.net.TrafficStats.getUidRxBytes(uid)
+        var lastTx = android.net.TrafficStats.getUidTxBytes(uid)
+        if (lastRx < 0 || lastTx < 0) return
+        var lastT = android.os.SystemClock.elapsedRealtime()
+        while (true) {
+            delay(1000)
+            val rx = android.net.TrafficStats.getUidRxBytes(uid)
+            val tx = android.net.TrafficStats.getUidTxBytes(uid)
+            val t = android.os.SystemClock.elapsedRealtime()
+            val dt = ((t - lastT).coerceAtLeast(1)) / 1000.0
+            val down = ((rx - lastRx).coerceAtLeast(0) / dt).toLong()
+            val up = ((tx - lastTx).coerceAtLeast(0) / dt).toLong()
+            lastRx = rx; lastTx = tx; lastT = t
+            _stats.update { s -> s.copy(downBps = down, upBps = up, speedHistory = (s.speedHistory + down).takeLast(12)) }
+        }
+    }
+
+    private suspend fun pingLoop() {
+        while (true) {
+            val srv = activeServer()
+            val ms = if (srv != null) tcpPing(srv.address, srv.port) else null
+            if (ms != null) {
+                _stats.update { s -> s.copy(pingMs = ms, pingHistory = (s.pingHistory + ms).takeLast(120)) }
+            }
+            delay(30_000)
+        }
+    }
+
+    /** Время TCP-рукопожатия с сервером (приложение исключено из туннеля — это реальный путь до сервера). */
+    private suspend fun tcpPing(host: String, port: Int): Long? = withContext(Dispatchers.IO) {
+        try {
+            val start = System.nanoTime()
+            java.net.Socket().use { it.connect(java.net.InetSocketAddress(host, port), 3000) }
+            ((System.nanoTime() - start) / 1_000_000L).coerceAtLeast(1)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /** «Сайты видят вас»: при VPN — запрос через локальный SOCKS ядра, без VPN — напрямую. */
+    fun refreshIpInfo(delayMs: Long = 0) {
+        ipJob?.cancel()
+        ipJob = viewModelScope.launch {
+            if (delayMs > 0) delay(delayMs)
+            val viaVpn = state.value.status == LiptonVpnService.VpnStatus.CONNECTED
+            _stats.update { it.copy(ipLoading = true) }
+            val info = try {
+                api.ipCheck(if (viaVpn) settings.getSocksPort() else null)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (_: Exception) { null }
+            val v6 = hasPublicIpv6()
+            _stats.update { s ->
+                s.copy(
+                    ip = info ?: (if (s.ipViaVpn == viaVpn) s.ip else null),
+                    ipViaVpn = viaVpn,
+                    ipLoading = false,
+                    ipv6Available = v6,
+                )
+            }
+        }
+    }
+
+    /** Результат «Проверки соединения» (профиль → VPN). */
+    data class ConnCheckResult(
+        val connected: Boolean,
+        val ip: com.lipton.vpn.data.model.IpInfo?,
+        val trace: Map<String, String>,
+        val ipv6Public: Boolean,
+        val pingMs: Long?,
+        val serverName: String?,
+        val error: String? = null,
+    )
+
+    /** Проверка: адрес глазами сайтов, ответ Cloudflare, IPv6, пинг до сервера. Через VPN — если подключено. */
+    suspend fun runConnectionCheck(): ConnCheckResult = coroutineScope {
+        val connected = state.value.status == LiptonVpnService.VpnStatus.CONNECTED
+        val port = if (connected) settings.getSocksPort() else null
+        val srv = activeServer()
+        val ipD = async { try { api.ipCheck(port) } catch (_: Exception) { null } }
+        val traceD = async { try { api.cloudflareTrace(port) } catch (_: Exception) { emptyMap() } }
+        val pingD = async { srv?.let { tcpPing(it.address, it.port) } }
+        val ip = ipD.await()
+        val trace = traceD.await()
+        if (ip != null) _stats.update { it.copy(ip = ip, ipViaVpn = connected) }
+        ConnCheckResult(
+            connected = connected,
+            ip = ip,
+            trace = trace,
+            ipv6Public = hasPublicIpv6(),
+            pingMs = pingD.await(),
+            serverName = srv?.displayName(),
+            error = if (ip == null && trace.isEmpty()) "Нет ответа — проверьте интернет" else null,
+        )
+    }
+
+    @Suppress("DEPRECATION")
+    private fun hasPublicIpv6(): Boolean = try {
+        val cm = getApplication<Application>().getSystemService(android.net.ConnectivityManager::class.java)
+        cm.allNetworks.any { net ->
+            val caps = cm.getNetworkCapabilities(net)
+            if (caps?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN) == true) return@any false
+            cm.getLinkProperties(net)?.linkAddresses?.any { la ->
+                val a = la.address
+                a is java.net.Inet6Address && !a.isLinkLocalAddress && !a.isLoopbackAddress &&
+                    !a.isSiteLocalAddress && (a.address[0].toInt() and 0xFE) != 0xFC
+            } == true
+        }
+    } catch (_: Exception) { false }
+
 
     // ─── Смена тарифа ─────────────────────────────────────────────────────────
 

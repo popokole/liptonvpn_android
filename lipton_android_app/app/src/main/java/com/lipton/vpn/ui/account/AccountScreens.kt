@@ -218,7 +218,11 @@ fun PaymentScreen(vm: MainViewModel, onClose: () -> Unit, onOpenChange: () -> Un
         try {
             val cfg = vm.api.getConfig()
             tariffs = cfg.tariffs
-            selectedPeriod = cfg.tariffs.firstOrNull()?.periods?.firstOrNull()?.id
+            // Срок, выбранный на главной («Купить» у тарифа), иначе первый.
+            val pre = vm.paymentPreselectPeriod
+            vm.paymentPreselectPeriod = null
+            selectedPeriod = pre?.takeIf { id -> cfg.tariffs.any { t -> t.periods.any { it.id == id } } }
+                ?: cfg.tariffs.firstOrNull()?.periods?.firstOrNull()?.id
         } catch (e: Exception) { err = e.message }
         loading = false
     }
@@ -232,7 +236,7 @@ fun PaymentScreen(vm: MainViewModel, onClose: () -> Unit, onOpenChange: () -> Un
             try {
                 val st = vm.api.paymentStatus(id)
                 when (st.status) {
-                    "succeeded" -> { phase = "ok"; vm.syncAccountSubscription() }
+                    "succeeded" -> { phase = "ok"; vm.clearPendingPromo(); vm.syncAccountSubscription() }
                     "failed", "canceled" -> { phase = "fail" }
                 }
             } catch (_: Exception) {}
@@ -280,6 +284,9 @@ fun PaymentScreen(vm: MainViewModel, onClose: () -> Unit, onOpenChange: () -> Un
                                 }
                             }
                         }
+                        vm.pendingPromo?.let { promo ->
+                            Text("Промокод $promo будет применён к оплате", color = Green, fontSize = 13.sp)
+                        }
                         err?.let { Text(it, color = Red, fontSize = 13.sp) }
                         Box(
                             Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
@@ -288,14 +295,14 @@ fun PaymentScreen(vm: MainViewModel, onClose: () -> Unit, onOpenChange: () -> Un
                                     scope.launch {
                                         busy = true; err = null
                                         try {
-                                            val res = vm.api.checkout(null, selectedPeriod, null)
+                                            val res = vm.api.checkout(null, selectedPeriod, vm.pendingPromo)
                                             txId = res.transactionId
                                             val url = res.confirmationUrl
                                             if (!url.isNullOrBlank()) {
                                                 ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
                                                 phase = "wait"
                                             } else if (res.status == "succeeded") {
-                                                phase = "ok"; vm.syncAccountSubscription()
+                                                phase = "ok"; vm.clearPendingPromo(); vm.syncAccountSubscription()
                                             } else { err = "Не удалось создать платёж" }
                                         } catch (e: ApiClient.ApiException) {
                                             // 409 «используйте смену тарифа» — другой тариф при активной подписке.

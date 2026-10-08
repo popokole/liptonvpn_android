@@ -11,6 +11,8 @@ class TrafficCheckWorker(ctx: Context, params: WorkerParameters) : CoroutineWork
 
     override suspend fun doWork(): Result {
         val settings = SettingsManager(applicationContext)
+        // Профиль → Приложение → «Уведомления»: выключены — молчим.
+        if (!settings.getNotificationsEnabled()) return Result.success()
         LiptonNotificationHelper.ensureChannels(applicationContext)
         settings.getSubscriptions().filter { !it.isTrial && it.userInfo.total > 0 }.forEach { sub ->
             val percent = (sub.userInfo.usedPercent() * 100).toInt()

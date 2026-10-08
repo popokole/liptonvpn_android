@@ -43,6 +43,12 @@ class SettingsManager(private val context: Context) {
         private val KEY_AUTH_REFRESH      = stringPreferencesKey("auth_refresh")
         private val KEY_AUTH_EXPIRES      = longPreferencesKey("auth_expires_at")
 
+        // ─── Редизайн: новости, трафик по дням, уведомления, раздельное туннелирование ──
+        private val KEY_NEWS_READ         = stringPreferencesKey("news_read_ids")
+        private val KEY_TRAFFIC_DAYS      = stringPreferencesKey("traffic_days")
+        private val KEY_NOTIFICATIONS     = booleanPreferencesKey("notifications_enabled")
+        private val KEY_SPLIT_APPS        = stringPreferencesKey("split_tunnel_apps")
+
         private val SUB_TYPE       = object : TypeToken<List<Subscription>>() {}.type
         private val STR_LIST_TYPE  = object : TypeToken<List<String>>() {}.type
         private val MAP_BOOL_TYPE  = object : TypeToken<MutableMap<String, Boolean>>() {}.type
@@ -244,6 +250,63 @@ class SettingsManager(private val context: Context) {
         }
     }
 
+    // ─── Новости: прочитанные (локально, по id) ──────────────────────────────
+
+    val newsReadFlow: Flow<Set<String>> = context.dataStore.data.map { prefs ->
+        val json = prefs[KEY_NEWS_READ] ?: return@map emptySet()
+        try { (gson.fromJson<List<String>>(json, STR_LIST_TYPE) ?: emptyList()).toSet() } catch (_: Exception) { emptySet() }
+    }
+
+    suspend fun markNewsRead(ids: Collection<String>) {
+        if (ids.isEmpty()) return
+        context.dataStore.edit { prefs ->
+            val cur: List<String> = try {
+                prefs[KEY_NEWS_READ]?.let { gson.fromJson<List<String>>(it, STR_LIST_TYPE) } ?: emptyList()
+            } catch (_: Exception) { emptyList() }
+            // Храним последние 300 id — лента всё равно отдаёт ~30 записей.
+            prefs[KEY_NEWS_READ] = gson.toJson((cur + ids).distinct().takeLast(300))
+        }
+    }
+
+    // ─── Трафик по дням «на этом телефоне» (пишет VPN-сервис) ────────────────
+
+    /** Дни «yyyy-MM-dd» → [приём, отдача] в байтах; хранится 14 последних дней. */
+    val trafficDaysFlow: Flow<Map<String, LongArray>> = context.dataStore.data.map { prefs ->
+        TrafficLedger.decode(prefs[KEY_TRAFFIC_DAYS])
+    }
+
+    suspend fun addTraffic(day: String, rx: Long, tx: Long) {
+        if (rx <= 0 && tx <= 0) return
+        context.dataStore.edit { prefs ->
+            val map = TrafficLedger.decode(prefs[KEY_TRAFFIC_DAYS]).toMutableMap()
+            prefs[KEY_TRAFFIC_DAYS] = TrafficLedger.encode(TrafficLedger.add(map, day, rx, tx))
+        }
+    }
+
+    // ─── Уведомления (локальные: срок подписки, трафик) ─────────────────────
+    // TODO(redesign): B4 — синхронизировать с GET/PUT /me/notifications, когда появится.
+
+    val notificationsFlow: Flow<Boolean> = context.dataStore.data.map { it[KEY_NOTIFICATIONS] != false }
+
+    suspend fun getNotificationsEnabled(): Boolean = context.dataStore.data.first()[KEY_NOTIFICATIONS] != false
+
+    suspend fun setNotificationsEnabled(v: Boolean) {
+        context.dataStore.edit { it[KEY_NOTIFICATIONS] = v }
+    }
+
+    // ─── Раздельное туннелирование: приложения мимо VPN ──────────────────────
+
+    val splitTunnelAppsFlow: Flow<List<String>> = context.dataStore.data.map { prefs ->
+        val json = prefs[KEY_SPLIT_APPS] ?: return@map emptyList()
+        try { gson.fromJson<List<String>>(json, STR_LIST_TYPE) ?: emptyList() } catch (_: Exception) { emptyList() }
+    }
+
+    suspend fun getSplitTunnelApps(): List<String> = splitTunnelAppsFlow.first()
+
+    suspend fun setSplitTunnelApps(packages: List<String>) {
+        context.dataStore.edit { it[KEY_SPLIT_APPS] = gson.toJson(packages.distinct().sorted()) }
+    }
+
     // ─── Reset ───────────────────────────────────────────────────────────────
 
     suspend fun reset() {
@@ -263,6 +326,7 @@ class SettingsManager(private val context: Context) {
             prefs.remove(KEY_SOCKS_PORT)
             prefs.remove(KEY_HTTP_PORT)
             prefs.remove(KEY_AUTO_CONNECT)
+            prefs.remove(KEY_SPLIT_APPS)
         }
     }
 }

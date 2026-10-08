@@ -28,6 +28,12 @@
     <!-- Downloadable Fonts: провайдер шрифтов Google Play Services (видимость пакета на Android 11+) -->
     <queries>
         <package android:name="com.google.android.gms" />
+        <!-- Раздельное туннелирование: список приложений с иконкой на рабочем столе
+             (без QUERY_ALL_PACKAGES). -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
     </queries>
 
     <application
