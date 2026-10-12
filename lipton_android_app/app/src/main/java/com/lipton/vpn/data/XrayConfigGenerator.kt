@@ -38,6 +38,12 @@ object XrayConfigGenerator {
                 "type" to "field",
                 "domain" to listOf(
                     "geosite:category-ru",
+                    // Вся зона .ru/.su/.рф целиком: geosite:category-ru покрывает
+                    // не все российские сайты (как в Windows-клиенте, RU_SUFFIXES).
+                    "domain:ru", "domain:su", "domain:xn--p1ai",
+                    // Российские сервисы вне .ru (как RU_EXTRA_DOMAINS в Windows).
+                    "domain:vk.me", "domain:vkuser.net", "domain:userapi.com", "domain:vk-cdn.net",
+                    "domain:yandex.com", "domain:yastatic.net", "domain:yandexcloud.net",
                     "domain:vk.com", "domain:vkontakte.ru",
                     "domain:gosuslugi.ru", "domain:mos.ru",
                     "domain:yandex.ru", "domain:yandex.net",
