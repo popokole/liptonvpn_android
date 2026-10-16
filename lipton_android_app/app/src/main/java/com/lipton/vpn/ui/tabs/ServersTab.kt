@@ -8,6 +8,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -113,12 +114,24 @@ fun ServersTab(
     ) {
         TabTopBar { SubscriptionCapsule(state) }
         ScreenTitle("Серверы") {
-            GlassButton(
-                if (state.pinging) "Пинг…" else "Пинг",
-                onClick = { viewModel.pingAllServers() },
-                icon = LiptonIcons.Pulse,
-                enabled = !state.pinging && servers.isNotEmpty(),
-            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                // Заново загрузить список серверов из подписки (новые серверы,
+                // сменившиеся адреса) — без выхода из приложения.
+                GlassButton(
+                    if (state.refreshingServers) "…" else "Обновить",
+                    onClick = { viewModel.refreshServers() },
+                    icon = LiptonIcons.Refresh,
+                    enabled = !state.refreshingServers,
+                    contentPadding = PaddingValues(horizontal = 12.dp),
+                )
+                GlassButton(
+                    if (state.pinging) "Пинг…" else "Пинг",
+                    onClick = { viewModel.pingAllServers() },
+                    icon = LiptonIcons.Pulse,
+                    enabled = !state.pinging && !state.refreshingServers && servers.isNotEmpty(),
+                    contentPadding = PaddingValues(horizontal = 12.dp),
+                )
+            }
         }
         Spacer(Modifier.height(4.dp))
         ConnectedLine(state, active)

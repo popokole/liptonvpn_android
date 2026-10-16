@@ -78,6 +78,7 @@ data class UiState(
     val bypassDomains:       List<String>       = emptyList(),
     val autostart:           Boolean            = false,
     val pinging:             Boolean            = false,
+    val refreshingServers:   Boolean            = false,   // «Обновить» на вкладке «Серверы»
     val loading:             Boolean            = true,
     val themeMode:           AppTheme           = AppTheme.SYSTEM,
     val autoConnectOnLaunch: Boolean            = false,
@@ -705,6 +706,40 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             _state.update { it.copy(pinging = true) }
             settings.getSubscriptions().forEach { sub -> try { subManager.pingAll(sub.id) } catch (_: Exception) {} }
             _state.update { it.copy(pinging = false, lastPingAt = System.currentTimeMillis()) }
+        }
+    }
+
+    /**
+     * «Обновить» на вкладке «Серверы»: заново тянем подписку (из аккаунта или
+     * по ссылке добавленной вручную) и перепроверяем пинг. Активный сервер
+     * сохраняется, если он остался в подписке (SubscriptionManager.refresh
+     * сохраняет id совпавших серверов).
+     */
+    fun refreshServers() {
+        if (state.value.refreshingServers) return
+        viewModelScope.launch {
+            _state.update { it.copy(refreshingServers = true) }
+            var failed = false
+            if (state.value.isAuthed) {
+                try {
+                    val me = api.getSubscription()
+                    _state.update { applySubscriptionView(it, me) }
+                    me.subscriptionUrl?.takeIf { it.isNotBlank() }?.let { subManager.syncFromAccount(it) }
+                } catch (_: Exception) {
+                    failed = true
+                }
+            } else {
+                settings.getSubscriptions().forEach { sub ->
+                    try { subManager.refresh(sub.id) } catch (_: Exception) { failed = true }
+                }
+            }
+            _state.update {
+                it.copy(
+                    refreshingServers = false,
+                    errorMessage = if (failed) "Не удалось обновить серверы. Проверьте интернет и попробуйте ещё раз" else it.errorMessage,
+                )
+            }
+            if (!failed) pingAllServers()
         }
     }
 
