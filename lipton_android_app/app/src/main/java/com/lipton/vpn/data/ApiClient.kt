@@ -135,7 +135,10 @@ class ApiClient(private val settings: SettingsManager) {
                 throw ApiException("Сессия истекла, войдите снова", 401, "unauthorized")
             }
             if (ok) return authed(method, path, bodyObj, true)
-            throw ApiException("Сессия истекла, войдите снова", 401, "unauthorized")
+            // Refresh не прошёл из-за сети (сервер токен НЕ отклонял): сессия жива,
+            // это не «войдите снова». Раньше здесь был unauthorized, и экран
+            // переключался на вход — например сразу после обновления, пока нет сети.
+            throw ApiException("Нет связи с сервером, попробуйте позже", 0, "network")
         }
         if (r.status >= 400) throw failure(r, "Ошибка ${r.status}")
         return r.body

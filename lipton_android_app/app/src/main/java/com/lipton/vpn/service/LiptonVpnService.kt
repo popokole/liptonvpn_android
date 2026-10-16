@@ -110,6 +110,34 @@ class LiptonVpnService : VpnService() {
                 scope.launch { startVpnForServer(serverId) }
             }
             ACTION_STOP  -> scope.launch { stopVpn() }
+            else -> {
+                // Запуск системой: «Постоянный VPN» (Always-on) после обновления
+                // или перезагрузки (action = VpnService.SERVICE_INTERFACE) либо
+                // перезапуск после гибели процесса (START_STICKY, intent == null).
+                // Раньше такой запуск игнорировался: сервис висел без туннеля, а при
+                // «Блокировать соединения без VPN» Android отрезал весь интернет.
+                // Подключаемся к последнему выбранному серверу.
+                try {
+                    startForeground(NOTIF_ID, buildNotification("Подключение…"))
+                } catch (e: Exception) {
+                    Log.e(TAG, "startForeground при системном запуске не удался", e)
+                }
+                scope.launch {
+                    if (isConnected) return@launch
+                    val settings = SettingsManager(applicationContext)
+                    val id = settings.getActiveServerId()
+                        ?: settings.getSubscriptions().flatMap { it.servers }.firstOrNull()?.id
+                    if (id == null) {
+                        // Подключаться не к чему (вышли из аккаунта) — не висим впустую.
+                        withContext(Dispatchers.Main) {
+                            stopForeground(STOP_FOREGROUND_REMOVE)
+                            stopSelf()
+                        }
+                        return@launch
+                    }
+                    startVpnForServer(id)
+                }
+            }
         }
         return START_STICKY
     }
