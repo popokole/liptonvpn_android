@@ -196,10 +196,8 @@ class SubscriptionManager(private val settings: SettingsManager) {
         if (idx < 0) return@withContext
 
         val sub = subs[idx]
-        val pingedServers = sub.servers.map { server ->
-            val ping = measurePing(server.address, server.port)
-            server.copy(ping = ping)
-        }
+        val pings = measureServers(sub.servers) { s -> measurePing(s.address, s.port) }
+        val pingedServers = sub.servers.map { it.copy(ping = pings[it.id]) }
         subs[idx] = sub.copy(servers = pingedServers)
         settings.saveSubscriptions(subs)
     }

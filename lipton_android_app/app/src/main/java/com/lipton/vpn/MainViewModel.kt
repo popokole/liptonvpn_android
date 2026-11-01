@@ -1,5 +1,6 @@
 package com.lipton.vpn
 
+import com.lipton.vpn.data.defaultServer
 import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -512,11 +513,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
             if (!firstLaunchDone) settings.setFirstLaunchDone(true)
 
-            // Auto-select first server if none is saved
+            // Сервер не выбран — берём «Авто-баланс» (или самый быстрый), а не просто первый
             var activeId = settings.getActiveServerId()
             val allServers = subs.flatMap { it.servers }
             if (activeId == null || allServers.none { it.id == activeId }) {
-                activeId = allServers.firstOrNull()?.id
+                activeId = allServers.defaultServer()?.id
                 if (activeId != null) settings.setActiveServerId(activeId)
             }
 
@@ -630,7 +631,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
 
         val serverId = state.value.activeServerId
-            ?: state.value.subscriptions.flatMap { it.servers }.firstOrNull()?.id
+            ?: state.value.subscriptions.flatMap { it.servers }.defaultServer()?.id
             ?: return
 
         val permIntent = VpnService.prepare(context)
@@ -920,7 +921,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             try { subManager.syncFromAccount(url) } catch (_: Exception) {}
         }
         val servers = settings.getSubscriptions().flatMap { it.servers }
-        val next = servers.find { it.displayName() == oldActive } ?: servers.firstOrNull()
+        val next = servers.find { it.displayName() == oldActive } ?: servers.defaultServer()
         if (next != null) settings.setActiveServerId(next.id)
         _state.update {
             applySubscriptionView(it, res).copy(
@@ -1012,7 +1013,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun reconnectIfConnected(context: Context) {
         val st = state.value
         if (st.status != LiptonVpnService.VpnStatus.CONNECTED) return
-        val id = st.activeServerId ?: st.subscriptions.flatMap { it.servers }.firstOrNull()?.id ?: return
+        val id = st.activeServerId ?: st.subscriptions.flatMap { it.servers }.defaultServer()?.id ?: return
         connect(context, id)
     }
 
@@ -1032,7 +1033,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun activeServer(): Server? {
         val all = state.value.subscriptions.flatMap { it.servers }
-        return all.find { it.id == state.value.activeServerId } ?: all.firstOrNull()
+        return all.find { it.id == state.value.activeServerId } ?: all.defaultServer()
     }
 
     // ─── Новости и статус серверов ───────────────────────────────────────────
@@ -1457,7 +1458,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 ?: return TrialStart.Failed("Сервер не выдал ссылку — попробуйте позже")
             val expires = parseIsoMillis(res.expiresAt) ?: (System.currentTimeMillis() + cfgMinutes * 60_000L)
             val sub = subManager.addTrialFromApi(url, expires, "Пробный доступ")
-            val first = sub.servers.firstOrNull()?.id
+            val first = sub.servers.defaultServer()?.id
             if (first != null) settings.setActiveServerId(first)
             val session = TrialSession(expires, cfgMinutes, res.serverName, url)
             settings.setGuestSession(session.toStored())
@@ -1528,7 +1529,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 val url = res.subscriptionUrl?.takeIf { it.isNotBlank() } ?: throw ApiClient.ApiException("Сервер не выдал ссылку — попробуйте позже")
                 val expires = parseIsoMillis(res.expiresAt) ?: (System.currentTimeMillis() + minutes * 60_000L)
                 val sub = subManager.addTrialFromApi(url, expires, "15 минут бесплатно")
-                val first = sub.servers.firstOrNull()?.id
+                val first = sub.servers.defaultServer()?.id
                 if (first != null) settings.setActiveServerId(first)
                 val session = TrialSession(expires, minutes, null, url)
                 settings.setDailyTrial(session.toStored())
@@ -1663,7 +1664,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             settings.setBypassRu(enabled)
             if (state.value.status == LiptonVpnService.VpnStatus.CONNECTED) {
                 val serverId = state.value.activeServerId
-                    ?: state.value.subscriptions.flatMap { it.servers }.firstOrNull()?.id
+                    ?: state.value.subscriptions.flatMap { it.servers }.defaultServer()?.id
                 if (serverId != null) try { connect(getApplication(), serverId) } catch (_: Exception) {}
             }
         }

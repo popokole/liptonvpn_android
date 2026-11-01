@@ -1,5 +1,6 @@
 package com.lipton.vpn.service
 
+import com.lipton.vpn.data.defaultServer
 import android.app.PendingIntent
 import android.content.Intent
 import android.net.VpnService
@@ -56,7 +57,7 @@ class LiptonTileService : TileService() {
         scope.launch {
             val settings = SettingsManager(context)
             val serverId = settings.getActiveServerId()
-                ?: settings.getSubscriptions().flatMap { it.servers }.firstOrNull()?.id
+                ?: settings.getSubscriptions().flatMap { it.servers }.defaultServer()?.id
                 ?: return@launch
             startForegroundService(
                 Intent(context, LiptonVpnService::class.java).apply {

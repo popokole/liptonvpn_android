@@ -1,5 +1,6 @@
 package com.lipton.vpn.service
 
+import com.lipton.vpn.data.defaultServer
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -126,7 +127,7 @@ class LiptonVpnService : VpnService() {
                     if (isConnected) return@launch
                     val settings = SettingsManager(applicationContext)
                     val id = settings.getActiveServerId()
-                        ?: settings.getSubscriptions().flatMap { it.servers }.firstOrNull()?.id
+                        ?: settings.getSubscriptions().flatMap { it.servers }.defaultServer()?.id
                     if (id == null) {
                         // Подключаться не к чему (вышли из аккаунта) — не висим впустую.
                         withContext(Dispatchers.Main) {

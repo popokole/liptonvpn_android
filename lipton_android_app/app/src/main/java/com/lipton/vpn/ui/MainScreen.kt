@@ -1,5 +1,6 @@
 package com.lipton.vpn.ui
 
+import com.lipton.vpn.data.defaultServer
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.ComponentActivity
@@ -207,7 +208,7 @@ fun MainScreen(
     LaunchedEffect(state.loading) {
         if (!state.loading && state.autoConnectOnLaunch && state.status == VpnStatus.DISCONNECTED) {
             val serverId = state.activeServerId
-                ?: state.subscriptions.flatMap { it.servers }.firstOrNull()?.id
+                ?: state.subscriptions.flatMap { it.servers }.defaultServer()?.id
             if (serverId != null) viewModel.connect(activity, serverId)
         }
     }

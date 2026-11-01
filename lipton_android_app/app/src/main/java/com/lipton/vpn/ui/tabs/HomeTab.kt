@@ -1,5 +1,6 @@
 package com.lipton.vpn.ui.tabs
 
+import com.lipton.vpn.data.defaultServer
 import androidx.activity.ComponentActivity
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -334,7 +335,7 @@ private fun ConnectHero(
 private fun ServerChip(state: UiState, onClick: () -> Unit) {
     val c = LiptonTheme.colors
     val servers = state.subscriptions.flatMap { it.servers }
-    val active = servers.find { it.id == state.activeServerId } ?: servers.firstOrNull()
+    val active = servers.find { it.id == state.activeServerId } ?: servers.defaultServer()
     val shape = RoundedCornerShape(999.dp)
     Row(
         Modifier
@@ -448,7 +449,7 @@ private fun SeesYouTile(state: UiState, stats: StatsState, connected: Boolean, t
     val c = LiptonTheme.colors
     val ip = stats.ip?.takeIf { stats.ipViaVpn == connected }
     val servers = state.subscriptions.flatMap { it.servers }
-    val active = servers.find { it.id == state.activeServerId } ?: servers.firstOrNull()
+    val active = servers.find { it.id == state.activeServerId } ?: servers.defaultServer()
     val code = ip?.countryCode ?: if (connected) active?.countryCode() else null
     val place = listOfNotNull(ip?.country?.takeIf { it.isNotBlank() }, ip?.city?.takeIf { it.isNotBlank() })
         .joinToString(" · ")

@@ -1,5 +1,8 @@
 package com.lipton.vpn.ui.tabs
 
+import androidx.compose.runtime.collectAsState
+import com.lipton.vpn.data.hideOffline
+import com.lipton.vpn.data.defaultServer
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -97,8 +100,11 @@ fun ServersTab(
     onBuyBypass: () -> Unit,
 ) {
     val c = LiptonTheme.colors
-    val servers = state.subscriptions.flatMap { it.servers }
-    val active = servers.find { it.id == state.activeServerId } ?: servers.firstOrNull()
+    // Офлайн-серверы (статус «down» с бэкенда) не показываем; статус подтягивается вместе с новостями.
+    val news by viewModel.news.collectAsState()
+    LaunchedEffect(Unit) { viewModel.loadNews() }
+    val servers = hideOffline(state.subscriptions.flatMap { it.servers }, news.status, state.activeServerId)
+    val active = servers.find { it.id == state.activeServerId } ?: servers.defaultServer()
     val onBypassTariff = isBypassTariff(state)
     val auto = servers.firstOrNull { it.isAutoBalance() && !it.isBypassServer() }
     val bypassServers = servers.filter { it.isBypassServer() }

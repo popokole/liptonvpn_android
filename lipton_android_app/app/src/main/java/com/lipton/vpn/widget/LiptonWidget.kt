@@ -1,5 +1,6 @@
 package com.lipton.vpn.widget
 
+import com.lipton.vpn.data.defaultServer
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
@@ -102,7 +103,7 @@ class LiptonWidget : AppWidgetProvider() {
         scope.launch {
             val settings = SettingsManager(context)
             val serverId = settings.getActiveServerId()
-                ?: settings.getSubscriptions().flatMap { it.servers }.firstOrNull()?.id
+                ?: settings.getSubscriptions().flatMap { it.servers }.defaultServer()?.id
                 ?: return@launch
             context.startForegroundService(
                 Intent(context, LiptonVpnService::class.java).apply {

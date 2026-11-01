@@ -1,5 +1,6 @@
 package com.lipton.vpn
 
+import com.lipton.vpn.data.defaultServer
 import android.Manifest
 import android.animation.ObjectAnimator
 import android.app.Activity
@@ -57,7 +58,7 @@ class MainActivity : ComponentActivity() {
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             val serverId = viewModel.state.value.activeServerId
-                ?: viewModel.state.value.subscriptions.flatMap { it.servers }.firstOrNull()?.id
+                ?: viewModel.state.value.subscriptions.flatMap { it.servers }.defaultServer()?.id
                 ?: return@registerForActivityResult
             viewModel.connect(this, serverId)
         }
