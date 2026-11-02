@@ -100,7 +100,7 @@ fun PrimaryButton(
                     )
                 }
             }
-            .clip(RoundedCornerShape(999.dp))
+            .clip(RoundedCornerShape(percent = 50))
             .background(
                 if (c.isDark) Brush.verticalGradient(listOf(Color.White, primaryTint(tone)))
                 else Brush.verticalGradient(listOf(c.text, c.text))
@@ -109,8 +109,8 @@ fun PrimaryButton(
                 interactionSource = source, indication = null,
                 enabled = enabled && !loading, role = Role.Button, onClick = onClick,
             )
-            .padding(horizontal = if (large) 28.dp else 22.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
+            .padding(horizontal = if (large) 28.dp else 24.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         val content = c.btnPrimaryText
@@ -154,7 +154,7 @@ fun GlassPillButton(
     val source = remember { MutableInteractionSource() }
     val scale = pressScale(source)
     val glow = c.glowFor(tone).copy(alpha = 0.28f)
-    val shape = RoundedCornerShape(999.dp)
+    val shape = RoundedCornerShape(percent = 50)
     Row(
         modifier = modifier
             .graphicsLayer { scaleX = scale; scaleY = scale; alpha = if (enabled) 1f else 0.5f }
@@ -166,7 +166,7 @@ fun GlassPillButton(
             .border(1.dp, Brush.verticalGradient(0f to Color(0x24FFFFFF), 0.2f to Color.Transparent), shape)
             .clickable(interactionSource = source, indication = null, enabled = enabled, role = Role.Button, onClick = onClick)
             .padding(horizontal = 28.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
+        horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (icon != null) Icon(icon, contentDescription = null, tint = c.text, modifier = Modifier.size(18.dp))
@@ -190,7 +190,7 @@ fun GlassButton(
     val c = LiptonTheme.colors
     val source = remember { MutableInteractionSource() }
     val scale = pressScale(source)
-    val shape = RoundedCornerShape(999.dp)
+    val shape = RoundedCornerShape(percent = 50)
     Row(
         modifier = modifier
             .graphicsLayer { scaleX = scale; scaleY = scale; alpha = if (enabled) 1f else 0.5f }
@@ -203,7 +203,7 @@ fun GlassButton(
             .border(1.dp, c.btnGlassBorder, shape)
             .clickable(interactionSource = source, indication = null, enabled = enabled, role = Role.Button, onClick = onClick)
             .padding(contentPadding),
-        horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+        horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (icon != null) Icon(icon, contentDescription = null, tint = c.text, modifier = Modifier.size(16.dp))
@@ -227,7 +227,7 @@ fun GhostButton(
     Row(
         modifier = modifier
             .defaultMinSize(minHeight = 44.dp)
-            .clip(RoundedCornerShape(999.dp))
+            .clip(RoundedCornerShape(percent = 50))
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
             .padding(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),

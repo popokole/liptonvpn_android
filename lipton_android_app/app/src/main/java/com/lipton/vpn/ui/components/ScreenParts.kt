@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lipton.vpn.ui.theme.LiptonTheme
 import com.lipton.vpn.ui.theme.Tokens
+import com.lipton.vpn.ui.theme.LiptonSize
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Общие части экранов-вкладок: шапка (логотип + капсула), заголовок экрана,
@@ -154,7 +155,7 @@ fun ListRow(
             if (subtitle != null) {
                 Text(
                     subtitle,
-                    style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp, lineHeight = 16.sp),
+                    style = MaterialTheme.typography.labelMedium.copy(fontSize = LiptonSize.caption, lineHeight = 16.sp),
                     color = c.text.copy(alpha = if (c.isDark) 0.6f else 0.58f),
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,

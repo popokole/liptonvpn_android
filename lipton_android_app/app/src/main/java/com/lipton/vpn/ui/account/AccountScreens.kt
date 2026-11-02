@@ -36,6 +36,8 @@ import com.lipton.vpn.ui.theme.LocalLiptonColors
 import com.lipton.vpn.ui.theme.Red
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.lipton.vpn.ui.theme.LiptonSize
+import com.lipton.vpn.ui.components.LiptonIcons
 
 // ─── Утилиты ─────────────────────────────────────────────────────────────────
 
@@ -67,7 +69,7 @@ private fun SmallBtn(text: String, modifier: Modifier, onClick: () -> Unit) {
             .border(1.dp, lc.cardBorder, RoundedCornerShape(12.dp))
             .clickable(onClick = onClick).padding(vertical = 12.dp),
         contentAlignment = Alignment.Center,
-    ) { Text(text, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = lc.textSecondary) }
+    ) { Text(text, fontSize = LiptonSize.footnote, fontWeight = FontWeight.Medium, color = lc.textSecondary) }
 }
 
 // ─── Общая шапка полноэкранных панелей ───────────────────────────────────────
@@ -93,7 +95,7 @@ private fun SheetScaffold(title: String, onClose: (() -> Unit)?, content: @Compo
         ) {
             if (onClose != null) {
                 BackHandler(onBack = onClose)
-                Text("‹", fontSize = 30.sp, color = lc.textSecondary,
+                Text("‹", fontSize = LiptonSize.title1, color = lc.textSecondary,
                     modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onClose).padding(horizontal = 8.dp))
                 Spacer(Modifier.width(6.dp))
             } else {
@@ -163,10 +165,10 @@ fun PaymentScreen(vm: MainViewModel, onClose: () -> Unit, onOpenChange: () -> Un
                 "wait" -> Column(Modifier.fillMaxWidth().padding(top = 40.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     CircularProgressIndicator(color = Green)
                     Spacer(Modifier.height(16.dp))
-                    Text("Подтверждаем оплату…", color = lc.textPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text("Подтверждаем оплату…", color = lc.textPrimary, fontSize = LiptonSize.body, fontWeight = FontWeight.Bold)
                     Text("Завершите оплату в открывшемся окне и вернитесь в приложение.",
-                        color = lc.textSecondary, fontSize = 13.sp, textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(top = 6.dp))
+                        color = lc.textSecondary, fontSize = LiptonSize.footnote, textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(top = 4.dp))
                 }
                 else -> {
                     if (loading) {
@@ -175,26 +177,26 @@ fun PaymentScreen(vm: MainViewModel, onClose: () -> Unit, onOpenChange: () -> Un
                         }
                     } else {
                         tariffs.forEach { t ->
-                            Text(t.title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = lc.textPrimary)
+                            Text(t.title, fontSize = LiptonSize.subhead, fontWeight = FontWeight.Bold, color = lc.textPrimary)
                             t.periods.forEach { p ->
                                 val on = selectedPeriod == p.id
                                 Row(
                                     Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
                                         .background(if (on) lc.greenCard else lc.cardBg)
                                         .border(1.dp, if (on) Green else lc.cardBorder, RoundedCornerShape(12.dp))
-                                        .clickable { selectedPeriod = p.id }.padding(14.dp),
+                                        .clickable { selectedPeriod = p.id }.padding(16.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
-                                    Text("${p.days} дней", fontSize = 14.sp, color = lc.textPrimary, modifier = Modifier.weight(1f))
-                                    Text(rub(p.priceKopeks), fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                                    Text("${p.days} дней", fontSize = LiptonSize.subhead, color = lc.textPrimary, modifier = Modifier.weight(1f))
+                                    Text(rub(p.priceKopeks), fontSize = LiptonSize.subhead, fontWeight = FontWeight.Bold,
                                         color = if (on) Green else lc.textPrimary)
                                 }
                             }
                         }
                         vm.pendingPromo?.let { promo ->
-                            Text("Промокод $promo будет применён к оплате", color = Green, fontSize = 13.sp)
+                            Text("Промокод $promo будет применён к оплате", color = Green, fontSize = LiptonSize.footnote)
                         }
-                        err?.let { Text(it, color = Red, fontSize = 13.sp) }
+                        err?.let { Text(it, color = Red, fontSize = LiptonSize.footnote) }
                         Box(
                             Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
                                 .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(Green, Green3)))
@@ -220,10 +222,10 @@ fun PaymentScreen(vm: MainViewModel, onClose: () -> Unit, onOpenChange: () -> Un
                                         catch (e: Exception) { err = e.message }
                                         finally { busy = false }
                                     }
-                                }.padding(vertical = 14.dp),
+                                }.padding(vertical = 16.dp),
                             contentAlignment = Alignment.Center,
                         ) { Text(if (busy) "Создаём платёж…" else "Перейти к оплате",
-                            fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.Black) }
+                            fontSize = LiptonSize.subhead, fontWeight = FontWeight.Bold, color = Color.Black) }
                     }
                 }
             }
@@ -235,24 +237,24 @@ fun PaymentScreen(vm: MainViewModel, onClose: () -> Unit, onOpenChange: () -> Un
 private fun ResultBlock(ok: Boolean, onAction: () -> Unit) {
     val lc = LocalLiptonColors.current
     Column(Modifier.fillMaxWidth().padding(top = 40.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(if (ok) "🎉" else "✕", fontSize = 56.sp, color = if (ok) Green else Red)
+        Icon(if (ok) LiptonIcons.Check else LiptonIcons.Close, contentDescription = null, tint = if (ok) Green else Red, modifier = Modifier.size(56.dp))
         Spacer(Modifier.height(12.dp))
-        Text(if (ok) "Оплата прошла!" else "Оплата не прошла",
-            fontSize = 20.sp, fontWeight = FontWeight.Bold, color = lc.textPrimary)
+        Text(if (ok) "Оплата прошла" else "Оплата не прошла",
+            fontSize = LiptonSize.title3, fontWeight = FontWeight.Bold, color = lc.textPrimary)
         Text(
             if (ok) "Подписка активна — можно подключаться."
             else "Платёж отклонён или отменён. Попробуйте снова.",
-            fontSize = 13.sp, color = lc.textSecondary, textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = 6.dp, start = 20.dp, end = 20.dp),
+            fontSize = LiptonSize.footnote, color = lc.textSecondary, textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 4.dp, start = 20.dp, end = 20.dp),
         )
         Spacer(Modifier.height(24.dp))
         Box(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
                 .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(Green, Green3)))
-                .clickable(onClick = onAction).padding(vertical = 14.dp),
+                .clickable(onClick = onAction).padding(vertical = 16.dp),
             contentAlignment = Alignment.Center,
         ) { Text(if (ok) "Готово" else "Попробовать снова",
-            fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.Black) }
+            fontSize = LiptonSize.subhead, fontWeight = FontWeight.Bold, color = Color.Black) }
     }
 }
 
@@ -287,10 +289,10 @@ fun TariffChangeScreen(vm: MainViewModel, onClose: () -> Unit) {
                     Column(Modifier.fillMaxWidth().padding(top = 40.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         CircularProgressIndicator(color = Green)
                         Spacer(Modifier.height(16.dp))
-                        Text("Подтверждаем оплату…", color = lc.textPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Text("Подтверждаем оплату…", color = lc.textPrimary, fontSize = LiptonSize.body, fontWeight = FontWeight.Bold)
                         Text("Если открылась страница оплаты — завершите её и вернитесь в приложение.",
-                            color = lc.textSecondary, fontSize = 13.sp, textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(top = 6.dp))
+                            color = lc.textSecondary, fontSize = LiptonSize.footnote, textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(top = 4.dp))
                     }
                     SmallBtn("Закрыть", Modifier.fillMaxWidth().padding(top = 12.dp)) { close() }
                 }
@@ -338,7 +340,7 @@ private fun ChangeChoose(cs: TariffChangeState, onPick: (ChangeOption) -> Unit, 
             else -> "Смена тарифа сейчас недоступна"
         }
         ChangeCard {
-            Text(text, fontSize = 14.sp, color = lc.textPrimary, lineHeight = 20.sp)
+            Text(text, fontSize = LiptonSize.subhead, color = lc.textPrimary, lineHeight = 20.sp)
         }
         if (err != null && (reason == null || reason.isBlank())) {
             SmallBtn("Повторить", Modifier.fillMaxWidth(), onRetry)
@@ -349,20 +351,20 @@ private fun ChangeChoose(cs: TariffChangeState, onPick: (ChangeOption) -> Unit, 
     val cur = cs.current
     if (cur != null) {
         ChangeCard {
-            Text("Сейчас", fontSize = 12.sp, color = lc.textTertiary)
-            Text("«${cur.tariffTitle}», ${cur.periodDays} дн.", fontSize = 15.sp,
+            Text("Сейчас", fontSize = LiptonSize.caption, color = lc.textTertiary)
+            Text("«${cur.tariffTitle}», ${cur.periodDays} дн.", fontSize = LiptonSize.subhead,
                 fontWeight = FontWeight.Bold, color = lc.textPrimary, modifier = Modifier.padding(top = 2.dp))
             val end = ruDate(cur.periodEnd)
-            if (end.isNotEmpty()) Text("действует до $end", fontSize = 12.sp, color = lc.textSecondary)
+            if (end.isNotEmpty()) Text("действует до $end", fontSize = LiptonSize.caption, color = lc.textSecondary)
         }
     }
     if (cs.discountPercent > 0) {
         Text("Остаток текущей подписки засчитывается, на доплату — скидка ${cs.discountPercent}%.",
-            fontSize = 12.sp, color = lc.textSecondary, lineHeight = 17.sp)
+            fontSize = LiptonSize.caption, color = lc.textSecondary, lineHeight = 17.sp)
     }
 
     if (cs.options.isEmpty()) {
-        Text("Вариантов дороже или длиннее пока нет.", fontSize = 14.sp, color = lc.textSecondary,
+        Text("Вариантов дороже или длиннее пока нет.", fontSize = LiptonSize.subhead, color = lc.textSecondary,
             modifier = Modifier.padding(top = 8.dp))
     }
     cs.options.forEach { o ->
@@ -372,10 +374,10 @@ private fun ChangeChoose(cs: TariffChangeState, onPick: (ChangeOption) -> Unit, 
         Row(verticalAlignment = Alignment.CenterVertically) {
             CircularProgressIndicator(color = Green, strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(8.dp))
-            Text("Считаем…", fontSize = 13.sp, color = lc.textSecondary)
+            Text("Считаем…", fontSize = LiptonSize.footnote, color = lc.textSecondary)
         }
     }
-    if (err != null) Text(err, color = Red, fontSize = 13.sp)
+    if (err != null) Text(err, color = Red, fontSize = LiptonSize.footnote)
 }
 
 @Composable
@@ -383,7 +385,7 @@ private fun ChangeCard(content: @Composable ColumnScope.() -> Unit) {
     val lc = LocalLiptonColors.current
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(lc.cardBg)
-            .border(1.dp, lc.cardBorder, RoundedCornerShape(12.dp)).padding(14.dp),
+            .border(1.dp, lc.cardBorder, RoundedCornerShape(12.dp)).padding(16.dp),
         content = content,
     )
 }
@@ -400,15 +402,15 @@ private fun ChangeOptionCard(
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(lc.cardBg)
             .border(1.dp, if (o.isOverlay) Green.copy(alpha = 0.5f) else lc.cardBorder, RoundedCornerShape(12.dp))
-            .clickable(enabled = enabled, onClick = onClick).padding(14.dp),
+            .clickable(enabled = enabled, onClick = onClick).padding(16.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("${o.tariffTitle} · ${o.periodDays} дн.", fontSize = 15.sp, fontWeight = FontWeight.Bold,
+            Text("${o.tariffTitle} · ${o.periodDays} дн.", fontSize = LiptonSize.subhead, fontWeight = FontWeight.Bold,
                 color = lc.textPrimary, modifier = Modifier.weight(1f))
             Text(
                 if (o.isOverlay) rub(o.priceKopeks)
                 else if (o.surchargeKopeks > 0L) "+${rub(o.surchargeKopeks)}" else "0 ₽",
-                fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Green,
+                fontSize = LiptonSize.subhead, fontWeight = FontWeight.Bold, color = Green,
             )
         }
         Spacer(Modifier.height(6.dp))
@@ -422,27 +424,27 @@ private fun ChangeLines(o: ChangeOption, discountPercent: Int, currentTitle: Str
     val lc = LocalLiptonColors.current
     if (o.isOverlay) {
         val revert = o.revertTariffTitle ?: currentTitle ?: "прежний тариф"
-        Text("${rub(o.priceKopeks)}, потом снова «$revert»", fontSize = 13.sp, color = lc.textPrimary)
+        Text("${rub(o.priceKopeks)}, потом снова «$revert»", fontSize = LiptonSize.footnote, color = lc.textPrimary)
         val until = ruDate(o.overlayUntil)
         if (until.isNotEmpty())
-            Text("«${o.tariffTitle}» до $until", fontSize = 12.sp, color = lc.textSecondary)
+            Text("«${o.tariffTitle}» до $until", fontSize = LiptonSize.caption, color = lc.textSecondary)
         val end = ruDate(o.newPeriodEnd)
         if (end.isNotEmpty())
-            Text("затем «$revert» до $end", fontSize = 12.sp, color = lc.textSecondary)
+            Text("затем «$revert» до $end", fontSize = LiptonSize.caption, color = lc.textSecondary)
     } else {
         Text(
             if (o.surchargeKopeks > 0L) "Доплата ${rub(o.surchargeKopeks)}" else "Без доплаты",
-            fontSize = 13.sp, color = lc.textPrimary,
+            fontSize = LiptonSize.footnote, color = lc.textPrimary,
         )
         if (o.discountKopeks > 0L) {
             val label = if (discountPercent > 0) "Скидка $discountPercent%" else "Скидка"
-            Text("$label: −${rub(o.discountKopeks)}", fontSize = 12.sp, color = Green)
+            Text("$label: −${rub(o.discountKopeks)}", fontSize = LiptonSize.caption, color = Green)
         }
         if (o.extraDays > 0)
-            Text("+${o.extraDays} дн. перенесено", fontSize = 12.sp, color = Green)
+            Text("+${o.extraDays} дн. перенесено", fontSize = LiptonSize.caption, color = Green)
         val end = ruDate(o.newPeriodEnd)
         if (end.isNotEmpty())
-            Text("Новая дата окончания: $end", fontSize = 12.sp, color = lc.textSecondary)
+            Text("Новая дата окончания: $end", fontSize = LiptonSize.caption, color = lc.textSecondary)
     }
 }
 
@@ -468,13 +470,13 @@ private fun ChangeConfirm(
     onBack: () -> Unit,
 ) {
     val lc = LocalLiptonColors.current
-    Text("Проверьте условия", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = lc.textPrimary)
+    Text("Проверьте условия", fontSize = LiptonSize.subhead, fontWeight = FontWeight.Bold, color = lc.textPrimary)
     ChangeCard {
-        Text("${p.tariffTitle} · ${p.periodDays} дн.", fontSize = 15.sp, fontWeight = FontWeight.Bold,
+        Text("${p.tariffTitle} · ${p.periodDays} дн.", fontSize = LiptonSize.subhead, fontWeight = FontWeight.Bold,
             color = lc.textPrimary)
         Spacer(Modifier.height(6.dp))
         if (!p.isOverlay && p.creditKopeks > 0L)
-            Text("Зачёт остатка: ${rub(p.creditKopeks)}", fontSize = 12.sp, color = lc.textSecondary)
+            Text("Зачёт остатка: ${rub(p.creditKopeks)}", fontSize = LiptonSize.caption, color = lc.textSecondary)
         ChangeLines(p, discountPercent, currentTitle)
     }
     Text(
@@ -482,17 +484,17 @@ private fun ChangeConfirm(
             "Оставшиеся дни текущего тарифа сохранятся и продолжатся после. Автопродление — по цене «${p.revertTariffTitle ?: currentTitle ?: "текущего тарифа"}»."
         else
             "Дальше автопродление по цене ${rub(p.priceKopeks)} за ${p.periodDays} дн.",
-        fontSize = 12.sp, color = lc.textTertiary, lineHeight = 17.sp,
+        fontSize = LiptonSize.caption, color = lc.textTertiary, lineHeight = 17.sp,
     )
-    if (error != null) Text(error, color = Red, fontSize = 13.sp)
+    if (error != null) Text(error, color = Red, fontSize = LiptonSize.footnote)
     Box(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
             .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(Green, Green3)))
-            .clickable(enabled = !busy, onClick = onConfirm).padding(vertical = 14.dp),
+            .clickable(enabled = !busy, onClick = onConfirm).padding(vertical = 16.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(if (busy) "Подождите…" else confirmLabel(p),
-            fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+            fontSize = LiptonSize.subhead, fontWeight = FontWeight.Bold, color = Color.Black)
     }
     SmallBtn("Назад", Modifier.fillMaxWidth(), onBack)
 }
@@ -501,22 +503,22 @@ private fun ChangeConfirm(
 private fun ChangeResultBlock(ok: Boolean, text: String?, onAction: () -> Unit) {
     val lc = LocalLiptonColors.current
     Column(Modifier.fillMaxWidth().padding(top = 40.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(if (ok) "🎉" else "✕", fontSize = 56.sp, color = if (ok) Green else Red)
+        Icon(if (ok) LiptonIcons.Check else LiptonIcons.Close, contentDescription = null, tint = if (ok) Green else Red, modifier = Modifier.size(56.dp))
         Spacer(Modifier.height(12.dp))
-        Text(if (ok) "Тариф изменён!" else "Не получилось",
-            fontSize = 20.sp, fontWeight = FontWeight.Bold, color = lc.textPrimary)
+        Text(if (ok) "Тариф изменён" else "Не получилось",
+            fontSize = LiptonSize.title3, fontWeight = FontWeight.Bold, color = lc.textPrimary)
         Text(
             text ?: (if (ok) "Можно подключаться." else "Попробуйте снова."),
-            fontSize = 13.sp, color = lc.textSecondary, textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = 6.dp, start = 20.dp, end = 20.dp),
+            fontSize = LiptonSize.footnote, color = lc.textSecondary, textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 4.dp, start = 20.dp, end = 20.dp),
         )
         Spacer(Modifier.height(24.dp))
         Box(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
                 .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(Green, Green3)))
-                .clickable(onClick = onAction).padding(vertical = 14.dp),
+                .clickable(onClick = onAction).padding(vertical = 16.dp),
             contentAlignment = Alignment.Center,
         ) { Text(if (ok) "Готово" else "Попробовать снова",
-            fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.Black) }
+            fontSize = LiptonSize.subhead, fontWeight = FontWeight.Bold, color = Color.Black) }
     }
 }

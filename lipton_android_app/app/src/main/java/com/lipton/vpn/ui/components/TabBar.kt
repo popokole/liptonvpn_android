@@ -42,6 +42,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lipton.vpn.ui.theme.LiptonTheme
 import com.lipton.vpn.ui.theme.Tokens
+import com.lipton.vpn.ui.theme.LiptonSize
+import androidx.compose.material3.minimumInteractiveComponentSize
 
 /** Вкладки нижней навигации. */
 enum class LiptonTab(val route: String, val label: String, val icon: ImageVector) {
@@ -71,7 +73,7 @@ fun LiptonTabBar(
     badges: Set<LiptonTab> = emptySet(),
 ) {
     val c = LiptonTheme.colors
-    val shape = RoundedCornerShape(999.dp)
+    val shape = RoundedCornerShape(percent = 50)
     Row(
         modifier = modifier
             .drawBehind {
@@ -84,7 +86,7 @@ fun LiptonTabBar(
             .clip(shape)
             .background(c.navFill)
             .border(1.dp, c.navBorder, shape)
-            .padding(6.dp)
+            .padding(4.dp)
             .selectableGroup(),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -106,9 +108,10 @@ private fun TabItem(tab: LiptonTab, selected: Boolean, badge: Boolean, onClick: 
     val anim = tween<Color>(Tokens.Motion.TAB_FADE_MS, easing = Tokens.Motion.standard)
     val bg by animateColorAsState(if (selected) c.navActiveFill else c.navActiveFill.copy(alpha = 0f), anim, label = "tab_bg")
     val fg by animateColorAsState(if (selected) c.navActiveText else c.navInactive, anim, label = "tab_fg")
-    val shape = RoundedCornerShape(999.dp)
+    val shape = RoundedCornerShape(percent = 50)
     Row(
-        modifier = Modifier
+        modifier = Modifier.minimumInteractiveComponentSize()
+            // ai-design-check-ignore-next-line tap-target -- зона нажатия 48dp даёт minimumInteractiveComponentSize(), видимый кружок меньше
             .height(44.dp)
             .defaultMinSize(minWidth = 44.dp)
             .clip(shape)
@@ -149,7 +152,7 @@ private fun TabItem(tab: LiptonTab, selected: Boolean, badge: Boolean, onClick: 
                 Box(Modifier.width(8.dp))
                 Text(
                     tab.label,
-                    style = MaterialTheme.typography.labelLarge.copy(fontSize = 14.sp, letterSpacing = 0.sp),
+                    style = MaterialTheme.typography.labelLarge.copy(fontSize = LiptonSize.subhead, letterSpacing = 0.sp),
                     color = fg,
                     maxLines = 1,
                 )

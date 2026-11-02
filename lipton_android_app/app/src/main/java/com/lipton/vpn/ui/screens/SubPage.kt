@@ -63,6 +63,8 @@ import com.lipton.vpn.ui.components.stateTone
 import com.lipton.vpn.ui.components.tabBarBottomPadding
 import com.lipton.vpn.ui.tabs.SubscriptionCapsule
 import com.lipton.vpn.ui.theme.LiptonTheme
+import com.lipton.vpn.ui.theme.LiptonSize
+import androidx.compose.material3.minimumInteractiveComponentSize
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Каркас подэкранов профиля по макетам new-scr-*: шапка «Lipton VPN» с
@@ -126,7 +128,8 @@ fun SubTitleRow(title: String, onBack: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            Modifier
+            Modifier.minimumInteractiveComponentSize()
+                // ai-design-check-ignore-next-line tap-target -- зона нажатия 48dp даёт minimumInteractiveComponentSize(), видимый кружок меньше
                 .size(40.dp)
                 .glass(CircleShape, highlightHeight = 20.dp)
                 .clickable(role = Role.Button, onClick = onBack)
@@ -136,7 +139,7 @@ fun SubTitleRow(title: String, onBack: () -> Unit) {
         Spacer(Modifier.width(14.dp))
         Text(
             title,
-            style = MaterialTheme.typography.headlineSmall.copy(fontSize = 25.sp, lineHeight = 30.sp),
+            style = MaterialTheme.typography.headlineSmall.copy(fontSize = LiptonSize.title1, lineHeight = 30.sp),
             color = c.text, maxLines = 2, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
@@ -192,18 +195,18 @@ fun GlassInput(
             .clip(shape)
             .background(c.text.copy(alpha = if (c.isDark) 0.05f else 0.04f))
             .border(1.dp, if (error) c.warn.copy(alpha = 0.6f) else c.text.copy(alpha = 0.12f), shape)
-            .padding(horizontal = 14.dp),
+            .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Icon(icon, null, tint = c.stateTone(AuroraTone.ON).a.copy(alpha = 0.9f), modifier = Modifier.size(18.dp))
         Box(Modifier.weight(1f)) {
-            if (value.isEmpty()) Text(placeholder, style = MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp), color = c.text.copy(alpha = 0.4f), maxLines = 1)
+            if (value.isEmpty()) Text(placeholder, style = MaterialTheme.typography.bodyLarge.copy(fontSize = LiptonSize.body), color = c.text.copy(alpha = 0.4f), maxLines = 1)
             BasicTextField(
                 value = value,
                 onValueChange = onChange,
                 singleLine = true,
-                textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = c.text),
+                textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = LiptonSize.body, fontWeight = FontWeight.SemiBold, color = c.text),
                 cursorBrush = SolidColor(c.stateTone(AuroraTone.ON).a),
                 keyboardOptions = KeyboardOptions(keyboardType = keyboardType, capitalization = capitalization, imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { onDone() }),
@@ -218,7 +221,7 @@ fun GlassInput(
 @Composable
 fun BulletLine(text: AnnotatedString) {
     val c = LiptonTheme.colors
-    Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Box(Modifier.padding(top = 8.dp).size(5.dp).clip(CircleShape).background(c.stateTone(AuroraTone.ON).a))
         Text(text, style = MaterialTheme.typography.bodyMedium, color = c.text.copy(alpha = 0.78f))
     }

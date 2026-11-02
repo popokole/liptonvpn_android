@@ -65,6 +65,7 @@ import com.lipton.vpn.ui.theme.LiptonText
 import com.lipton.vpn.ui.theme.LiptonTheme
 import com.lipton.vpn.ui.theme.TABULAR_NUMS
 import kotlinx.coroutines.delay
+import com.lipton.vpn.ui.theme.LiptonSize
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Гостевой режим и «15 минут бесплатно» (макеты new-guest-*): капсула с
@@ -126,7 +127,7 @@ fun TrialAccessCard(
             .padding(16.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(12.dp).clip(RoundedCornerShape(999.dp)).border(1.5.dp, t.a, RoundedCornerShape(999.dp)))
+            Box(Modifier.size(12.dp).clip(RoundedCornerShape(percent = 50)).border(1.5.dp, t.a, RoundedCornerShape(percent = 50)))
             Spacer(Modifier.width(8.dp))
             Text(
                 buildAnnotatedString {
@@ -143,11 +144,11 @@ fun TrialAccessCard(
         Spacer(Modifier.height(14.dp))
         Text(
             if (guest) "Создайте аккаунт,\nчтобы не потерять доступ" else "Оформите подписку,\nчтобы не потерять доступ",
-            style = MaterialTheme.typography.titleMedium.copy(fontSize = 17.sp, lineHeight = 24.sp),
+            style = MaterialTheme.typography.titleMedium.copy(fontSize = LiptonSize.body, lineHeight = 24.sp),
             color = c.text,
         )
         Spacer(Modifier.height(14.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
             PrimaryButton(
                 if (guest) "Создать аккаунт" else "Оформить подписку", onClick = onPrimary,
                 icon = if (guest) LiptonIcons.UserPlus else null, height = 44.dp,
@@ -189,7 +190,7 @@ fun GuestEndedHero(state: UiState, onCreate: () -> Unit, onLogin: () -> Unit) {
     Column(Modifier.fillMaxWidth().padding(top = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         TimerRing("0:00", "из ${formatCountdown(minutes * 60_000L)}", 0f, AuroraTone.NO_SUB, size = 168.dp)
         Spacer(Modifier.height(18.dp))
-        Row(Modifier.height(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.height(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             StatusDot(warn.a)
             Text("ПРОБНЫЙ ДОСТУП ЗАКОНЧИЛСЯ", style = LiptonText.eyebrow.copy(letterSpacing = LiptonText.eyebrow.letterSpacing * 0.6f), color = c.stateText(AuroraTone.NO_SUB))
         }
@@ -198,7 +199,7 @@ fun GuestEndedHero(state: UiState, onCreate: () -> Unit, onLogin: () -> Unit) {
             "$minutes минут\nпрошли",
             style = MaterialTheme.typography.headlineLarge.copy(
                 fontFamily = MaterialTheme.typography.displayLarge.fontFamily, fontWeight = FontWeight.SemiBold,
-                fontSize = 34.sp, lineHeight = 42.sp,
+                fontSize = LiptonSize.large, lineHeight = 42.sp,
                 shadow = if (c.isDark) Shadow(warn.a.copy(alpha = 0.3f), Offset.Zero, 40f) else null,
             ),
             color = c.text, textAlign = TextAlign.Center,
@@ -212,7 +213,7 @@ fun GuestEndedHero(state: UiState, onCreate: () -> Unit, onLogin: () -> Unit) {
         PrimaryButton("Создать аккаунт", onClick = onCreate, tone = ButtonTone.WARN, trailingIcon = LiptonIcons.ArrowRight, modifier = Modifier.fillMaxWidth())
         Spacer(Modifier.height(12.dp))
         Row(
-            Modifier.fillMaxWidth().height(52.dp).glass(RoundedCornerShape(999.dp), highlightHeight = 26.dp).clickable(role = Role.Button, onClick = onLogin),
+            Modifier.fillMaxWidth().height(52.dp).glass(RoundedCornerShape(percent = 50), highlightHeight = 26.dp).clickable(role = Role.Button, onClick = onLogin),
             horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(LiptonIcons.LogIn, null, tint = c.text, modifier = Modifier.size(18.dp))
@@ -233,7 +234,7 @@ fun GuestEndedHero(state: UiState, onCreate: () -> Unit, onLogin: () -> Unit) {
                     Text(
                         buildAnnotatedString {
                             withStyle(SpanStyle(color = c.text.copy(alpha = 0.6f))) { append("от ") }
-                            withStyle(SpanStyle(fontWeight = FontWeight.Bold, fontSize = 20.sp, color = c.text)) { append(rubles(from.priceKopeks)) }
+                            withStyle(SpanStyle(fontWeight = FontWeight.Bold, fontSize = LiptonSize.title3, color = c.text)) { append(rubles(from.priceKopeks)) }
                             withStyle(SpanStyle(color = c.text.copy(alpha = 0.6f))) { append(" / мес") }
                         },
                         style = MaterialTheme.typography.bodySmall.copy(fontFeatureSettings = TABULAR_NUMS),

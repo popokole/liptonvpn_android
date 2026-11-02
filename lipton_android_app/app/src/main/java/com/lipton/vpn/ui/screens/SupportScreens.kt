@@ -88,6 +88,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.Calendar
 import java.util.Locale
+import com.lipton.vpn.ui.theme.LiptonSize
+import androidx.compose.material3.minimumInteractiveComponentSize
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Чат поддержки (new-scr-support) и база знаний (new-scr-kb): ИИ-помощник с
@@ -208,7 +210,7 @@ fun SupportChatScreen(state: UiState, viewModel: MainViewModel, onBack: () -> Un
             Modifier.fillMaxWidth().weight(1f),
             state = list,
             contentPadding = PaddingValues(top = 14.dp, bottom = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             if (!loaded) {
                 item { Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = t.a, strokeWidth = 2.dp, modifier = Modifier.size(22.dp)) } }
@@ -230,7 +232,7 @@ fun SupportChatScreen(state: UiState, viewModel: MainViewModel, onBack: () -> Un
                         AssistantBubble(m)
                         if (i == lastAssistant && mode != "manual") {
                             Spacer(Modifier.height(8.dp))
-                            FlowRow(Modifier.padding(start = 34.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FlowRow(Modifier.padding(start = 36.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 val key = m.id ?: "idx:$i"
                                 val fb = feedback[key]
                                 if (feedbackSupported && m.id != null) {
@@ -246,7 +248,7 @@ fun SupportChatScreen(state: UiState, viewModel: MainViewModel, onBack: () -> Un
                             Text(
                                 listOfNotNull("ИИ-помощник", hm(m.at)).joinToString(" · "),
                                 style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium), color = c.text.copy(alpha = 0.5f),
-                                modifier = Modifier.padding(start = 34.dp, top = 6.dp),
+                                modifier = Modifier.padding(start = 36.dp, top = 4.dp),
                             )
                         }
                     }
@@ -260,22 +262,23 @@ fun SupportChatScreen(state: UiState, viewModel: MainViewModel, onBack: () -> Un
             }
         }
         // Строка ввода: скрепка (логи), поле, отправка
-        val shape = RoundedCornerShape(999.dp)
+        val shape = RoundedCornerShape(percent = 50)
         Row(
             Modifier
                 .fillMaxWidth()
                 .imePadding()
-                .padding(bottom = 10.dp)
+                .padding(bottom = 12.dp)
                 .heightIn(min = 52.dp)
                 .glass(shape, highlightHeight = 26.dp)
-                .padding(start = 6.dp, end = 6.dp),
+                .padding(start = 4.dp, end = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
-                Modifier.size(40.dp).clip(CircleShape).clickable(role = Role.Button, onClick = attachLogs).semantics { contentDescription = "Отправить логи приложения" },
+                // ai-design-check-ignore-next-line tap-target -- зона нажатия 48dp даёт minimumInteractiveComponentSize(), видимый кружок меньше
+                Modifier.minimumInteractiveComponentSize().size(40.dp).clip(CircleShape).clickable(role = Role.Button, onClick = attachLogs).semantics { contentDescription = "Отправить логи приложения" },
                 contentAlignment = Alignment.Center,
             ) { Icon(LiptonIcons.Paperclip, null, tint = c.text.copy(alpha = 0.6f), modifier = Modifier.size(18.dp)) }
-            Box(Modifier.weight(1f).padding(horizontal = 6.dp, vertical = 12.dp)) {
+            Box(Modifier.weight(1f).padding(horizontal = 4.dp, vertical = 12.dp)) {
                 if (input.isEmpty()) Text("Сообщение…", style = MaterialTheme.typography.bodyLarge, color = c.text.copy(alpha = 0.45f))
                 BasicTextField(
                     value = input, onValueChange = { input = it.take(2000) }, maxLines = 4,
@@ -329,8 +332,8 @@ private fun UserBubble(m: AiMessage) {
                 .widthIn(max = 290.dp)
                 .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 20.dp, bottomEnd = 6.dp))
                 .background(Brush.linearGradient(listOf(t.a, t.b)))
-                .padding(horizontal = 14.dp, vertical = 10.dp),
-        ) { Text(m.content, style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp, lineHeight = 21.sp), color = Color(0xFF04140C)) }
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+        ) { Text(m.content, style = MaterialTheme.typography.bodyMedium.copy(fontSize = LiptonSize.subhead, lineHeight = 21.sp), color = Color(0xFF04140C)) }
         hm(m.at)?.let { time ->
             Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(time, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium), color = c.text.copy(alpha = 0.5f))
@@ -346,14 +349,14 @@ private fun UserBubble(m: AiMessage) {
 private fun AssistantBubble(m: AiMessage) {
     val c = LiptonTheme.colors
     val t = c.stateTone(AuroraTone.ON)
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         AiAvatar(24.dp)
         Column(
             Modifier
                 .widthIn(max = 290.dp)
                 .glass(RoundedCornerShape(topStart = 6.dp, topEnd = 20.dp, bottomStart = 20.dp, bottomEnd = 20.dp), highlightHeight = 28.dp)
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             val step = Regex("^\\s*(\\d{1,2})[.)]\\s+(.*)$")
             m.content.trim().lines().filter { it.isNotBlank() }.forEach { line ->
@@ -363,10 +366,10 @@ private fun AssistantBubble(m: AiMessage) {
                         Box(Modifier.padding(top = 1.dp).size(20.dp).clip(CircleShape).border(1.dp, t.a.copy(alpha = 0.6f), CircleShape), contentAlignment = Alignment.Center) {
                             Text(mm.groupValues[1], style = MaterialTheme.typography.labelSmall, color = c.stateText(AuroraTone.ON))
                         }
-                        Text(mm.groupValues[2], style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp, lineHeight = 21.sp), color = c.text)
+                        Text(mm.groupValues[2], style = MaterialTheme.typography.bodyMedium.copy(fontSize = LiptonSize.subhead, lineHeight = 21.sp), color = c.text)
                     }
                 } else {
-                    Text(line.trim(), style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp, lineHeight = 21.sp, fontWeight = FontWeight.SemiBold), color = c.text)
+                    Text(line.trim(), style = MaterialTheme.typography.bodyMedium.copy(fontSize = LiptonSize.subhead, lineHeight = 21.sp, fontWeight = FontWeight.SemiBold), color = c.text)
                 }
             }
         }
@@ -376,10 +379,10 @@ private fun AssistantBubble(m: AiMessage) {
 @Composable
 private fun TypingBubble() {
     val c = LiptonTheme.colors
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         AiAvatar(24.dp)
         Row(
-            Modifier.glass(RoundedCornerShape(16.dp), highlightHeight = 20.dp).padding(horizontal = 14.dp, vertical = 10.dp),
+            Modifier.glass(RoundedCornerShape(16.dp), highlightHeight = 20.dp).padding(horizontal = 16.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
         ) {
             CircularProgressIndicator(color = c.stateTone(AuroraTone.ON).a, strokeWidth = 1.5.dp, modifier = Modifier.size(12.dp))
@@ -392,9 +395,10 @@ private fun TypingBubble() {
 private fun ChatChip(text: String, icon: ImageVector?, accent: Boolean = false, onClick: () -> Unit) {
     val c = LiptonTheme.colors
     val t = c.stateTone(AuroraTone.ON)
-    val shape = RoundedCornerShape(999.dp)
+    val shape = RoundedCornerShape(percent = 50)
     Row(
-        Modifier
+        Modifier.minimumInteractiveComponentSize()
+            // ai-design-check-ignore-next-line tap-target -- зона нажатия 48dp даёт minimumInteractiveComponentSize(), видимый кружок меньше
             .height(34.dp)
             .clip(shape)
             .background(if (accent) t.a.copy(alpha = 0.10f) else c.text.copy(alpha = 0.04f))
@@ -402,10 +406,10 @@ private fun ChatChip(text: String, icon: ImageVector?, accent: Boolean = false, 
             .clickable(role = Role.Button, onClick = onClick)
             .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         if (icon != null) Icon(icon, null, tint = if (accent) c.stateText(AuroraTone.ON) else c.text.copy(alpha = 0.8f), modifier = Modifier.size(14.dp))
-        Text(text, style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp), color = if (accent) c.stateText(AuroraTone.ON) else c.text)
+        Text(text, style = MaterialTheme.typography.labelLarge.copy(fontSize = LiptonSize.footnote), color = if (accent) c.stateText(AuroraTone.ON) else c.text)
     }
 }
 
@@ -458,13 +462,14 @@ fun KnowledgeBaseScreen(state: UiState, viewModel: MainViewModel, onBack: () -> 
                     .sortedBy { CATEGORY_ORDER.indexOf(it).let { i -> if (i < 0) 99 else i } }
                 if (cats.isNotEmpty()) {
                     Spacer(Modifier.height(12.dp))
-                    FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp), maxItemsInEachRow = 2) {
+                    FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp), maxItemsInEachRow = 2) {
                         cats.forEach { cat ->
                             val on = cat == category
-                            val sh = RoundedCornerShape(999.dp)
+                            val sh = RoundedCornerShape(percent = 50)
                             Row(
-                                Modifier
+                                Modifier.minimumInteractiveComponentSize()
                                     .weight(1f)
+                                    // ai-design-check-ignore-next-line tap-target -- зона нажатия 48dp даёт minimumInteractiveComponentSize(), видимый кружок меньше
                                     .height(44.dp)
                                     .glass(sh, highlightHeight = 22.dp)
                                     .border(1.dp, if (on) t.a.copy(alpha = 0.6f) else Color.Transparent, sh)
@@ -473,7 +478,7 @@ fun KnowledgeBaseScreen(state: UiState, viewModel: MainViewModel, onBack: () -> 
                             ) {
                                 Icon(categoryIcon(cat), null, tint = c.stateText(AuroraTone.ON), modifier = Modifier.size(14.dp))
                                 Spacer(Modifier.width(6.dp))
-                                Text(cat, style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp), color = c.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(cat, style = MaterialTheme.typography.labelLarge.copy(fontSize = LiptonSize.footnote), color = c.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                         }
                     }
@@ -484,7 +489,7 @@ fun KnowledgeBaseScreen(state: UiState, viewModel: MainViewModel, onBack: () -> 
                 }
                 Spacer(Modifier.height(16.dp))
                 GlassGroup {
-                    Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(LiptonIcons.Pulse, null, tint = c.stateText(AuroraTone.ON), modifier = Modifier.size(14.dp))
                         Spacer(Modifier.width(6.dp))
                         Text(category ?: if (q.isEmpty()) "Популярное" else "Найдено", style = MaterialTheme.typography.labelMedium, color = c.text.copy(alpha = 0.85f), modifier = Modifier.weight(1f))
@@ -551,7 +556,7 @@ private fun ArticleRow(a: ArticleSummary, onClick: () -> Unit) {
 @Composable
 private fun FaqRow(f: FaqEntry, expanded: Boolean, onToggle: () -> Unit) {
     val c = LiptonTheme.colors
-    Column(Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onToggle).padding(horizontal = 16.dp, vertical = 14.dp)) {
+    Column(Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onToggle).padding(horizontal = 16.dp, vertical = 16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(f.question, style = MaterialTheme.typography.titleSmall, color = c.text, modifier = Modifier.weight(1f))
             Icon(LiptonIcons.ChevronRight, null, tint = c.text.copy(alpha = 0.5f), modifier = Modifier.size(16.dp))

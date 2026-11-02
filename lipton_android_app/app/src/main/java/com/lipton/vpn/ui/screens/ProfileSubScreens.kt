@@ -88,6 +88,8 @@ import com.lipton.vpn.ui.theme.UnboundedFamily
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.Locale
+import com.lipton.vpn.ui.theme.LiptonSize
+import androidx.compose.material3.minimumInteractiveComponentSize
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Подэкраны профиля по макетам new-scr-*: свои домены, смена почты, логи,
@@ -118,9 +120,9 @@ fun DomainsScreen(state: UiState, viewModel: MainViewModel, onBack: () -> Unit) 
         SubIntro("Трафик к этим сайтам пойдёт напрямую, мимо VPN. Применится при следующем подключении.")
         Spacer(Modifier.height(20.dp))
         GlassCard(Modifier.fillMaxWidth(), contentPadding = PaddingValues(16.dp)) {
-            Text("Домен", style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp), color = c.text.copy(alpha = 0.7f))
+            Text("Домен", style = MaterialTheme.typography.labelLarge.copy(fontSize = LiptonSize.footnote), color = c.text.copy(alpha = 0.7f))
             Spacer(Modifier.height(10.dp))
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 GlassInput(
                     input, { input = it.take(253); error = null }, "example.com", LiptonIcons.Globe,
                     modifier = Modifier.weight(1f), keyboardType = KeyboardType.Uri, error = error != null, onDone = add,
@@ -157,7 +159,8 @@ fun DomainsScreen(state: UiState, viewModel: MainViewModel, onBack: () -> Unit) 
                             }
                         }
                         Box(
-                            Modifier.size(36.dp).clip(CircleShape).background(c.text.copy(alpha = 0.05f)).border(1.dp, c.text.copy(alpha = 0.10f), CircleShape)
+                            // ai-design-check-ignore-next-line tap-target -- зона нажатия 48dp даёт minimumInteractiveComponentSize(), видимый кружок меньше
+                            Modifier.minimumInteractiveComponentSize().size(36.dp).clip(CircleShape).background(c.text.copy(alpha = 0.05f)).border(1.dp, c.text.copy(alpha = 0.10f), CircleShape)
                                 .clickable(role = Role.Button) { viewModel.removeBypassDomain(d) }
                                 .semantics { contentDescription = "Удалить $d" },
                             contentAlignment = Alignment.Center,
@@ -313,7 +316,7 @@ private fun StepCard(n: Int, title: String, active: Boolean, done: Boolean, cont
             .border(1.dp, if (active) t.a.copy(alpha = 0.35f) else Color.Transparent, shape)
             .padding(16.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Box(
                 Modifier.size(24.dp).clip(CircleShape)
                     .background(if (active || done) Brush.linearGradient(listOf(t.a, t.b)) else Brush.linearGradient(listOf(c.text.copy(alpha = 0.08f), c.text.copy(alpha = 0.08f)))),
@@ -353,7 +356,7 @@ fun LogsPage(state: UiState, viewModel: MainViewModel, onBack: () -> Unit) {
             }
         }
         Spacer(Modifier.height(12.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             GlassButton("Обновить", onClick = { viewModel.logDiagnostics() }, icon = LiptonIcons.Refresh, height = 48.dp, modifier = Modifier.weight(1f))
             GlassButton(
                 "Копировать",
@@ -364,7 +367,7 @@ fun LogsPage(state: UiState, viewModel: MainViewModel, onBack: () -> Unit) {
         if (state.isAuthed) {
             Spacer(Modifier.height(10.dp))
             val accent = c.stateTone(AuroraTone.ON).a
-            val shape = RoundedCornerShape(999.dp)
+            val shape = RoundedCornerShape(percent = 50)
             Row(
                 Modifier
                     .fillMaxWidth()
@@ -432,7 +435,7 @@ private fun LogLine(line: String) {
             if (time != null) withStyle(SpanStyle(color = c.text.copy(alpha = 0.45f))) { append(time) }
             append(rest)
         },
-        style = LiptonText.mono.copy(fontSize = 11.sp, lineHeight = 17.sp),
+        style = LiptonText.mono.copy(fontSize = LiptonSize.caption2, lineHeight = 17.sp),
         color = when {
             isErr -> c.danger
             isWarn -> warn
@@ -441,8 +444,8 @@ private fun LogLine(line: String) {
         modifier = Modifier
             .fillMaxWidth()
             .then(
-                if (isWarn || isErr) Modifier.clip(RoundedCornerShape(6.dp)).background((if (isErr) c.danger else warn).copy(alpha = 0.10f))
-                    .border(1.dp, (if (isErr) c.danger else warn).copy(alpha = 0.25f), RoundedCornerShape(6.dp)).padding(horizontal = 4.dp)
+                if (isWarn || isErr) Modifier.clip(RoundedCornerShape(4.dp)).background((if (isErr) c.danger else warn).copy(alpha = 0.10f))
+                    .border(1.dp, (if (isErr) c.danger else warn).copy(alpha = 0.25f), RoundedCornerShape(4.dp)).padding(horizontal = 4.dp)
                 else Modifier,
             )
             .padding(vertical = 1.dp),
@@ -461,7 +464,7 @@ fun PrivacyScreen(state: UiState, onBack: () -> Unit, onOpenFull: () -> Unit) {
     val t = c.stateTone(AuroraTone.ON)
     ProfileSubPage(state, "Политика конфиденциальности", onBack) {
         ToneChip("Кратко — полная версия на сайте", t.a, icon = LiptonIcons.Doc, textColor = c.text.copy(alpha = 0.85f), height = 28.dp)
-        SectionHeader("Коротко", Modifier.padding(top = 22.dp, bottom = 8.dp))
+        SectionHeader("Коротко", Modifier.padding(top = 24.dp, bottom = 8.dp))
         val facts = listOf(
             "Не храним историю посещённых сайтов",
             "Не продаём данные",
@@ -469,12 +472,12 @@ fun PrivacyScreen(state: UiState, onBack: () -> Unit, onOpenFull: () -> Unit) {
             "Можно отменить подписку и выйти в любой момент",
         )
         facts.chunked(2).forEach { row ->
-            Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 row.forEach { f ->
                     GlassCard(Modifier.weight(1f).height(128.dp), contentPadding = PaddingValues(16.dp)) {
                         ToneCircleIcon(LiptonIcons.Check, t.a, size = 26.dp, iconSize = 13.dp, glow = true)
                         Spacer(Modifier.weight(1f))
-                        Text(f, style = MaterialTheme.typography.titleSmall.copy(fontSize = 14.sp, lineHeight = 19.sp), color = c.text)
+                        Text(f, style = MaterialTheme.typography.titleSmall.copy(fontSize = LiptonSize.subhead, lineHeight = 19.sp), color = c.text)
                     }
                 }
             }
@@ -510,8 +513,8 @@ private fun bold(b: String, rest: String, color: Color): AnnotatedString = build
 @Composable
 private fun PolicyCard(title: String, content: @Composable () -> Unit) {
     val c = LiptonTheme.colors
-    GlassCard(Modifier.fillMaxWidth().padding(bottom = 10.dp), contentPadding = PaddingValues(18.dp)) {
-        Text(title, style = MaterialTheme.typography.titleMedium.copy(fontSize = 17.sp), color = c.text)
+    GlassCard(Modifier.fillMaxWidth().padding(bottom = 12.dp), contentPadding = PaddingValues(18.dp)) {
+        Text(title, style = MaterialTheme.typography.titleMedium.copy(fontSize = LiptonSize.body), color = c.text)
         Spacer(Modifier.height(8.dp))
         content()
     }
@@ -570,7 +573,7 @@ fun PromoScreen(state: UiState, viewModel: MainViewModel, onBack: () -> Unit, on
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(LiptonIcons.Tag, null, tint = c.stateText(AuroraTone.ON), modifier = Modifier.size(13.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text("ПРОМОКОД", style = LiptonText.section.copy(fontSize = 12.sp), color = c.stateText(AuroraTone.ON))
+                    Text("ПРОМОКОД", style = LiptonText.section.copy(fontSize = LiptonSize.caption), color = c.stateText(AuroraTone.ON))
                 }
                 Spacer(Modifier.weight(1f))
                 Text(
@@ -592,7 +595,7 @@ fun PromoScreen(state: UiState, viewModel: MainViewModel, onBack: () -> Unit, on
                 Text("подарок", style = MaterialTheme.typography.labelMedium, color = c.text.copy(alpha = 0.7f))
             }
         }
-        Text("Промокод", style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp), color = c.text.copy(alpha = 0.7f), modifier = Modifier.padding(top = 22.dp, bottom = 8.dp))
+        Text("Промокод", style = MaterialTheme.typography.labelLarge.copy(fontSize = LiptonSize.footnote), color = c.text.copy(alpha = 0.7f), modifier = Modifier.padding(top = 24.dp, bottom = 8.dp))
         GlassInput(
             code, { code = it.uppercase(Locale.ROOT).filter { ch -> !ch.isWhitespace() }.take(32); error = null },
             "Например, LIPTON10", LiptonIcons.Tag, Modifier.fillMaxWidth(),
@@ -609,7 +612,7 @@ fun PromoScreen(state: UiState, viewModel: MainViewModel, onBack: () -> Unit, on
             Spacer(Modifier.height(12.dp))
             val sh = RoundedCornerShape(20.dp)
             Row(
-                Modifier.fillMaxWidth().clip(sh).background(t.a.copy(alpha = 0.10f)).border(1.dp, t.a.copy(alpha = 0.4f), sh).padding(14.dp),
+                Modifier.fillMaxWidth().clip(sh).background(t.a.copy(alpha = 0.10f)).border(1.dp, t.a.copy(alpha = 0.4f), sh).padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Box(Modifier.size(36.dp).clip(CircleShape).background(Brush.linearGradient(listOf(t.a, t.b))), contentAlignment = Alignment.Center) {
@@ -617,7 +620,7 @@ fun PromoScreen(state: UiState, viewModel: MainViewModel, onBack: () -> Unit, on
                 }
                 Column(Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(ap, style = MaterialTheme.typography.titleMedium.copy(fontFamily = UnboundedFamily, fontSize = 15.sp), color = c.text)
+                        Text(ap, style = MaterialTheme.typography.titleMedium.copy(fontFamily = UnboundedFamily, fontSize = LiptonSize.subhead), color = c.text)
                         ToneChip("применён", t.a, textColor = c.stateText(AuroraTone.ON), height = 20.dp)
                     }
                     Text(
@@ -626,7 +629,8 @@ fun PromoScreen(state: UiState, viewModel: MainViewModel, onBack: () -> Unit, on
                     )
                 }
                 Box(
-                    Modifier.size(32.dp).clip(CircleShape).background(c.text.copy(alpha = 0.06f)).clickable(role = Role.Button) {
+                    // ai-design-check-ignore-next-line tap-target -- зона нажатия 48dp даёт minimumInteractiveComponentSize(), видимый кружок меньше
+                    Modifier.minimumInteractiveComponentSize().size(32.dp).clip(CircleShape).background(c.text.copy(alpha = 0.06f)).clickable(role = Role.Button) {
                         viewModel.clearPendingPromo(); applied = null; info = null
                     }.semantics { contentDescription = "Убрать промокод" },
                     contentAlignment = Alignment.Center,
@@ -636,7 +640,7 @@ fun PromoScreen(state: UiState, viewModel: MainViewModel, onBack: () -> Unit, on
             PrimaryButton("Перейти к оплате", onClick = onPay, tone = ButtonTone.ACCENT, trailingIcon = LiptonIcons.ArrowRight, height = 52.dp, modifier = Modifier.fillMaxWidth())
         }
         SectionHeader("Как это работает", Modifier.padding(top = 28.dp, bottom = 8.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             val base = state.appConfig?.baseTariff()?.monthlyPeriod()
             val pct = info?.percentOff
             val example = if (base != null && pct != null) {
@@ -654,7 +658,7 @@ private fun HowTile(modifier: Modifier, icon: androidx.compose.ui.graphics.vecto
     GlassCard(modifier.heightIn(min = 156.dp), contentPadding = PaddingValues(16.dp)) {
         IconTile(icon)
         Spacer(Modifier.height(12.dp))
-        Text(title, style = MaterialTheme.typography.titleSmall.copy(fontSize = 14.sp, lineHeight = 19.sp), color = c.text)
+        Text(title, style = MaterialTheme.typography.titleSmall.copy(fontSize = LiptonSize.subhead, lineHeight = 19.sp), color = c.text)
         Spacer(Modifier.height(4.dp))
         Text(sub, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium), color = c.text.copy(alpha = 0.6f))
     }

@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.sp
 import com.lipton.vpn.ui.theme.LiptonColors
 import com.lipton.vpn.ui.theme.LiptonTheme
 import com.lipton.vpn.ui.theme.TABULAR_NUMS
+import com.lipton.vpn.ui.theme.LiptonSize
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Мелкие индикаторы экранов редизайна: точка-статус, шкала пинга, полоса
@@ -141,7 +142,7 @@ fun GradientProgress(fraction: Float, tone: StateTone, modifier: Modifier = Modi
         modifier
             .fillMaxWidth()
             .height(height)
-            .clip(RoundedCornerShape(999.dp))
+            .clip(RoundedCornerShape(percent = 50))
             .background(c.text.copy(alpha = if (c.isDark) 0.08f else 0.07f)),
     ) {
         if (f > 0f) {
@@ -149,7 +150,7 @@ fun GradientProgress(fraction: Float, tone: StateTone, modifier: Modifier = Modi
                 Modifier
                     .fillMaxWidth(f)
                     .fillMaxHeight()
-                    .clip(RoundedCornerShape(999.dp))
+                    .clip(RoundedCornerShape(percent = 50))
                     .background(Brush.horizontalGradient(listOf(tone.a, tone.b))),
             )
         }
@@ -275,16 +276,16 @@ fun ToneChip(
     dot: Boolean = false,
     height: Dp = 24.dp,
 ) {
-    val shape = RoundedCornerShape(999.dp)
+    val shape = RoundedCornerShape(percent = 50)
     Row(
         modifier
             .height(height)
             .clip(shape)
             .background(color.copy(alpha = 0.12f))
             .border(1.dp, color.copy(alpha = 0.38f), shape)
-            .padding(start = if (icon != null || dot) 8.dp else 10.dp, end = 10.dp),
+            .padding(start = if (icon != null || dot) 8.dp else 12.dp, end = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         if (dot) StatusDot(color, size = 6.dp, glow = false)
         if (icon != null) Icon(icon, null, tint = textColor, modifier = Modifier.size(13.dp))
@@ -330,7 +331,7 @@ fun BigValue(value: String, unit: String?, modifier: Modifier = Modifier, dim: B
         if (unit != null) {
             Text(
                 unit,
-                style = MaterialTheme.typography.labelLarge.copy(fontSize = 14.sp),
+                style = MaterialTheme.typography.labelLarge.copy(fontSize = LiptonSize.subhead),
                 color = c.text.copy(alpha = 0.7f),
                 maxLines = 1,
                 modifier = Modifier.padding(bottom = 3.dp),

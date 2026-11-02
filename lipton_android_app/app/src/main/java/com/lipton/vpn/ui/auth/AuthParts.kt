@@ -94,6 +94,8 @@ import com.lipton.vpn.ui.components.stateTone
 import com.lipton.vpn.ui.theme.LiptonTheme
 import com.lipton.vpn.ui.theme.TABULAR_NUMS
 import com.lipton.vpn.ui.theme.UnboundedFamily
+import com.lipton.vpn.ui.theme.LiptonSize
+import androidx.compose.material3.minimumInteractiveComponentSize
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Общие части экранов онбординга и входа (макеты new-onb-*, 390×844):
@@ -152,7 +154,8 @@ internal fun OnbPage(
 internal fun RoundIconButton(icon: ImageVector, description: String, onClick: () -> Unit) {
     val c = LiptonTheme.colors
     Box(
-        Modifier
+        Modifier.minimumInteractiveComponentSize()
+            // ai-design-check-ignore-next-line tap-target -- зона нажатия 48dp даёт minimumInteractiveComponentSize(), видимый кружок меньше
             .size(40.dp)
             .glass(CircleShape, highlightHeight = 20.dp)
             .clickable(role = Role.Button, onClick = onClick)
@@ -168,12 +171,12 @@ internal fun RowScope.TopLabel(text: String, onClick: (() -> Unit)? = null) {
     Spacer(Modifier.weight(1f))
     Text(
         text,
-        style = MaterialTheme.typography.labelLarge.copy(fontSize = 14.sp, fontWeight = FontWeight.Bold),
+        style = MaterialTheme.typography.labelLarge.copy(fontSize = LiptonSize.subhead, fontWeight = FontWeight.Bold),
         color = c.text.copy(alpha = if (onClick != null) 0.92f else 0.78f),
         modifier = Modifier
-            .clip(RoundedCornerShape(999.dp))
+            .clip(RoundedCornerShape(percent = 50))
             .let { if (onClick != null) it.clickable(role = Role.Button, onClick = onClick) else it }
-            .padding(horizontal = 8.dp, vertical = 6.dp),
+            .padding(horizontal = 8.dp, vertical = 4.dp),
     )
 }
 
@@ -186,7 +189,7 @@ internal fun LogoRow(tone: AuroraTone, step: Int? = null, steps: Int = 3) {
         LogoTitle()
         Spacer(Modifier.weight(1f))
         if (step != null) {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                 for (i in 0 until steps) {
                     val on = i == step
                     Box(
@@ -194,7 +197,7 @@ internal fun LogoRow(tone: AuroraTone, step: Int? = null, steps: Int = 3) {
                             .width(if (on) 20.dp else 6.dp)
                             .height(6.dp)
                             .then(if (on) Modifier.drawBehind { softGlow(accent.copy(alpha = 0.45f), size.height / 2, 6.dp.toPx()) } else Modifier)
-                            .clip(RoundedCornerShape(999.dp))
+                            .clip(RoundedCornerShape(percent = 50))
                             .background(if (on) accent else c.text.copy(alpha = 0.28f)),
                     )
                 }
@@ -213,7 +216,7 @@ internal fun OnbTitle(first: String, second: String, tone: AuroraTone, modifier:
             append("\n")
             withStyle(SpanStyle(color = c.stateText(tone))) { append(second) }
         },
-        style = MaterialTheme.typography.headlineLarge.copy(fontSize = 34.sp, lineHeight = 40.sp),
+        style = MaterialTheme.typography.headlineLarge.copy(fontSize = LiptonSize.large, lineHeight = 40.sp),
         color = c.text,
         modifier = modifier.padding(top = 20.dp),
     )
@@ -227,7 +230,7 @@ internal fun OnbSubtitle(text: AnnotatedString, modifier: Modifier = Modifier) {
         text,
         style = MaterialTheme.typography.bodyLarge.copy(lineHeight = 22.sp),
         color = c.text.copy(alpha = 0.78f),
-        modifier = modifier.padding(top = 14.dp),
+        modifier = modifier.padding(top = 16.dp),
     )
 }
 
@@ -259,16 +262,16 @@ internal fun SecondaryPill(
         modifier
             .fillMaxWidth()
             .height(52.dp)
-            .glass(RoundedCornerShape(999.dp), highlightHeight = 26.dp)
+            .glass(RoundedCornerShape(percent = 50), highlightHeight = 26.dp)
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
             .padding(horizontal = 20.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
+        horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (icon != null) Icon(icon, null, tint = tint.copy(alpha = if (enabled) 1f else 0.5f), modifier = Modifier.size(18.dp))
         Text(
             text,
-            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold, fontSize = 16.sp),
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold, fontSize = LiptonSize.body),
             color = tint.copy(alpha = if (enabled) 1f else 0.5f),
             maxLines = 1,
         )
@@ -284,7 +287,7 @@ internal fun SecondaryPill(
 internal fun TrialCtaButton(title: String, subtitle: String, onClick: () -> Unit, enabled: Boolean = true) {
     val c = LiptonTheme.colors
     val t = c.stateTone(AuroraTone.ON)
-    val shape = RoundedCornerShape(999.dp)
+    val shape = RoundedCornerShape(percent = 50)
     Row(
         Modifier
             .fillMaxWidth()
@@ -294,11 +297,11 @@ internal fun TrialCtaButton(title: String, subtitle: String, onClick: () -> Unit
             .background(if (c.isDark) Brush.verticalGradient(listOf(Color.White, Color(0xFFE4FFF1))) else Brush.verticalGradient(listOf(Color.White, Color(0xFFF2FFF8))))
             .border(1.dp, if (c.isDark) Color.Transparent else t.a.copy(alpha = 0.25f), shape)
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
-            .padding(start = 24.dp, end = 10.dp),
+            .padding(start = 24.dp, end = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.titleMedium.copy(fontSize = 17.sp), color = Color(0xFF050807).copy(alpha = if (enabled) 1f else 0.5f), maxLines = 1)
+            Text(title, style = MaterialTheme.typography.titleMedium.copy(fontSize = LiptonSize.body), color = Color(0xFF050807).copy(alpha = if (enabled) 1f else 0.5f), maxLines = 1)
             Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Color(0xFF050807).copy(alpha = 0.6f), maxLines = 1)
         }
         Box(
@@ -315,7 +318,7 @@ internal fun TrialCtaButton(title: String, subtitle: String, onClick: () -> Unit
 @Composable
 internal fun FooterLink(prefix: String, link: String, tone: AuroraTone, onClick: () -> Unit, underline: Boolean = false) {
     val c = LiptonTheme.colors
-    Box(Modifier.fillMaxWidth().padding(top = 14.dp), contentAlignment = Alignment.Center) {
+    Box(Modifier.fillMaxWidth().padding(top = 16.dp), contentAlignment = Alignment.Center) {
         Text(
             buildAnnotatedString {
                 if (prefix.isNotEmpty()) {
@@ -332,9 +335,9 @@ internal fun FooterLink(prefix: String, link: String, tone: AuroraTone, onClick:
             },
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier
-                .clip(RoundedCornerShape(999.dp))
+                .clip(RoundedCornerShape(percent = 50))
                 .clickable(role = Role.Button, onClick = onClick)
-                .padding(horizontal = 12.dp, vertical = 10.dp),
+                .padding(horizontal = 12.dp, vertical = 12.dp),
         )
     }
 }
@@ -369,7 +372,7 @@ internal fun ErrorText(text: String?) {
         style = MaterialTheme.typography.bodySmall,
         color = c.stateText(AuroraTone.OFF),
         textAlign = TextAlign.Center,
-        modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+        modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
     )
 }
 
@@ -380,7 +383,7 @@ internal enum class LoginTab(val label: String) { EMAIL("Почта"), CODE("К�
 @Composable
 internal fun LoginTabs(selected: LoginTab, onSelect: (LoginTab) -> Unit) {
     val c = LiptonTheme.colors
-    val shape = RoundedCornerShape(999.dp)
+    val shape = RoundedCornerShape(percent = 50)
     Row(
         Modifier
             .fillMaxWidth()
@@ -412,7 +415,7 @@ internal fun LoginTabs(selected: LoginTab, onSelect: (LoginTab) -> Unit) {
                 Spacer(Modifier.width(6.dp))
                 Text(
                     tab.label,
-                    style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.SemiBold),
+                    style = MaterialTheme.typography.labelLarge.copy(fontSize = LiptonSize.footnote, fontWeight = if (on) FontWeight.Bold else FontWeight.SemiBold),
                     color = c.text.copy(alpha = if (on) 1f else 0.62f),
                     maxLines = 1,
                 )
@@ -438,7 +441,7 @@ internal fun EmailField(
     var focused by remember { mutableStateOf(false) }
     val focus = remember { FocusRequester() }
     val valid = isLikelyEmail(value)
-    val shape = RoundedCornerShape(18.dp)
+    val shape = RoundedCornerShape(20.dp)
     LaunchedEffect(Unit) { if (autoFocus) runCatching { focus.requestFocus() } }
     Row(
         Modifier
@@ -455,12 +458,12 @@ internal fun EmailField(
     ) {
         Icon(LiptonIcons.Mail, null, tint = c.text.copy(alpha = 0.55f), modifier = Modifier.size(18.dp))
         Box(Modifier.weight(1f)) {
-            if (value.isEmpty()) Text(placeholder, style = MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp), color = c.text.copy(alpha = 0.4f))
+            if (value.isEmpty()) Text(placeholder, style = MaterialTheme.typography.bodyLarge.copy(fontSize = LiptonSize.body), color = c.text.copy(alpha = 0.4f))
             BasicTextField(
                 value = value,
                 onValueChange = { onChange(it.trim().take(120)) },
                 singleLine = true,
-                textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = c.text),
+                textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = LiptonSize.body, fontWeight = FontWeight.SemiBold, color = c.text),
                 cursorBrush = SolidColor(accent),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { onDone() }),
@@ -581,7 +584,7 @@ internal fun BoxScope.ChatArt(botName: String) {
     Column(
         Modifier.align(Alignment.BottomEnd).padding(end = 44.dp, bottom = 40.dp),
         horizontalAlignment = Alignment.End,
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         val bubble = RoundedCornerShape(16.dp)
         Row(
@@ -589,14 +592,14 @@ internal fun BoxScope.ChatArt(botName: String) {
                 .clip(bubble)
                 .background(warn.copy(alpha = 0.14f))
                 .border(1.dp, warn.copy(alpha = 0.6f), bubble)
-                .padding(horizontal = 14.dp, vertical = 9.dp),
+                .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Text("/start", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = c.text)
             Icon(LiptonIcons.CheckDouble, null, tint = c.text.copy(alpha = 0.7f), modifier = Modifier.size(14.dp))
         }
-        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Box(
                 Modifier.size(28.dp).clip(CircleShape).background(Color(0xFF2AABEE)),
                 contentAlignment = Alignment.Center,
@@ -604,10 +607,10 @@ internal fun BoxScope.ChatArt(botName: String) {
             Column(
                 Modifier
                     .glass(RoundedCornerShape(16.dp), highlightHeight = 24.dp)
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Аккаунт создан", style = MaterialTheme.typography.titleSmall.copy(fontSize = 14.sp), color = c.text)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Аккаунт создан", style = MaterialTheme.typography.titleSmall.copy(fontSize = LiptonSize.subhead), color = c.text)
                     Icon(LiptonIcons.Check, null, tint = warn, modifier = Modifier.size(13.dp))
                 }
                 Text("Вот ваша ссылка для подключения", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium), color = c.text.copy(alpha = 0.7f))

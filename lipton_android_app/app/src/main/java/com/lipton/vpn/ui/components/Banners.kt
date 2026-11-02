@@ -42,6 +42,8 @@ import com.lipton.vpn.data.ApiClient
 import com.lipton.vpn.data.model.AppBanner
 import com.lipton.vpn.ui.theme.LiptonColors
 import com.lipton.vpn.ui.theme.LiptonTheme
+import com.lipton.vpn.ui.theme.LiptonSize
+import androidx.compose.material3.minimumInteractiveComponentSize
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Баннеры и экраны из админки (GET /app/banners): баннер в слоте над главной,
@@ -85,7 +87,7 @@ fun AppBannerCard(banner: AppBanner, onCta: () -> Unit, onClose: () -> Unit) {
             .glass(shape)
             .border(1.dp, tone.copy(alpha = 0.35f), shape)
             .let { if (hasCta) it.clickable(role = Role.Button, onClick = onCta) else it }
-            .padding(14.dp),
+            .padding(16.dp),
     ) {
         Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             ToneCircleIcon(bannerIcon(banner), tone, size = 36.dp, iconSize = 16.dp)
@@ -97,7 +99,8 @@ fun AppBannerCard(banner: AppBanner, onCta: () -> Unit, onClose: () -> Unit) {
             }
             if (banner.dismissible) {
                 Box(
-                    Modifier.size(28.dp).clip(CircleShape).clickable(role = Role.Button, onClick = onClose).semantics { contentDescription = "Скрыть" },
+                    // ai-design-check-ignore-next-line tap-target -- зона нажатия 48dp даёт minimumInteractiveComponentSize(), видимый кружок меньше
+                    Modifier.minimumInteractiveComponentSize().size(28.dp).clip(CircleShape).clickable(role = Role.Button, onClick = onClose).semantics { contentDescription = "Скрыть" },
                     contentAlignment = Alignment.Center,
                 ) { Icon(LiptonIcons.Close, null, tint = c.text.copy(alpha = 0.55f), modifier = Modifier.size(13.dp)) }
             }
@@ -175,7 +178,8 @@ private fun FullScreenMessage(
             Box(Modifier.fillMaxWidth().height(56.dp), contentAlignment = Alignment.CenterEnd) {
                 if (onClose != null) {
                     Box(
-                        Modifier.size(40.dp).glass(CircleShape, highlightHeight = 20.dp).clickable(role = Role.Button, onClick = onClose).semantics { contentDescription = "Закрыть" },
+                        // ai-design-check-ignore-next-line tap-target -- зона нажатия 48dp даёт minimumInteractiveComponentSize(), видимый кружок меньше
+                        Modifier.minimumInteractiveComponentSize().size(40.dp).glass(CircleShape, highlightHeight = 20.dp).clickable(role = Role.Button, onClick = onClose).semantics { contentDescription = "Закрыть" },
                         contentAlignment = Alignment.Center,
                     ) { Icon(LiptonIcons.Close, null, tint = c.text, modifier = Modifier.size(16.dp)) }
                 }
@@ -194,7 +198,7 @@ private fun FullScreenMessage(
             Spacer(Modifier.height(28.dp))
             Text(
                 title,
-                style = MaterialTheme.typography.headlineLarge.copy(fontSize = 30.sp, lineHeight = 36.sp),
+                style = MaterialTheme.typography.headlineLarge.copy(fontSize = LiptonSize.title1, lineHeight = 36.sp),
                 color = c.text, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
             )
             if (!text.isNullOrBlank()) {
@@ -213,7 +217,7 @@ private fun FullScreenMessage(
                 }
             }
             if (footnote != null) {
-                Text(footnote, style = MaterialTheme.typography.labelMedium, color = c.text.copy(alpha = 0.45f), textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(top = 14.dp))
+                Text(footnote, style = MaterialTheme.typography.labelMedium, color = c.text.copy(alpha = 0.45f), textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(top = 16.dp))
             }
             Spacer(Modifier.height(16.dp))
         }

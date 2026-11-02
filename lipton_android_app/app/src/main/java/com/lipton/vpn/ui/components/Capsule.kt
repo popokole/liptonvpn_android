@@ -51,7 +51,7 @@ fun Capsule(
 ) {
     val c = LiptonTheme.colors
     val toneColor = c.toneColor(tone)
-    val shape = RoundedCornerShape(999.dp)
+    val shape = RoundedCornerShape(percent = 50)
     val borderAlpha = if (tone == CapsuleTone.NEUTRAL) 0.18f else 0.5f
     val fillAlpha = if (tone == CapsuleTone.NEUTRAL) 0.07f else 0.08f
     Row(
@@ -61,9 +61,9 @@ fun Capsule(
             .background(toneColor.copy(alpha = fillAlpha))
             .border(1.dp, toneColor.copy(alpha = borderAlpha), shape)
             .let { if (onClick != null) it.clickable(onClick = onClick) else it }
-            .padding(PaddingValues(start = if (icon != null) 10.dp else 12.dp, end = 12.dp)),
+            .padding(PaddingValues(start = if (icon != null) 12.dp else 12.dp, end = 12.dp)),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         val style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = TABULAR_NUMS)
         if (icon != null) {

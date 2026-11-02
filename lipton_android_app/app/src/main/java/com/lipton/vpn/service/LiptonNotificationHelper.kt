@@ -61,7 +61,7 @@ object LiptonNotificationHelper {
         val nm = context.getSystemService(NotificationManager::class.java)
         val (title, text) = when {
             hoursLeft <= 0  -> "Подписка истекла" to "Подписка «$subName» истекла. Продлите для продолжения."
-            hoursLeft <= 1  -> "Подписка истекает" to "Подписка «$subName» истечёт менее чем через час!"
+            hoursLeft <= 1  -> "Подписка истекает" to "Подписка «$subName» истечёт менее чем через час."
             hoursLeft <= 24 -> "Подписка истекает" to "Подписка «$subName» истечёт через $hoursLeft ч."
             else            -> "Подписка истекает" to "Подписка «$subName» истечёт через ${hoursLeft / 24} дн."
         }

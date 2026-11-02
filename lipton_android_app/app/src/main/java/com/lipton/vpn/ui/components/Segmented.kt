@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.sp
 import com.lipton.vpn.ui.theme.LiptonTheme
 import com.lipton.vpn.ui.theme.Tokens
 import kotlin.math.roundToInt
+import com.lipton.vpn.ui.theme.LiptonSize
 
 /** Один вариант сегментированного переключателя. */
 data class SegmentOption<T>(val value: T, val label: String, val icon: ImageVector? = null)
@@ -68,7 +69,7 @@ fun <T> Segmented(
     modifier: Modifier = Modifier,
 ) {
     val c = LiptonTheme.colors
-    val shape = RoundedCornerShape(999.dp)
+    val shape = RoundedCornerShape(percent = 50)
     var local by remember(selected) { mutableStateOf(selected) }
     val index = options.indexOfFirst { it.value == local }.coerceAtLeast(0)
     val coords = remember(options.size) { arrayOfNulls<LayoutCoordinates>(options.size) }
@@ -151,7 +152,7 @@ fun <T> Segmented(
                     Text(
                         opt.label,
                         color = color,
-                        fontSize = 13.sp,
+                        fontSize = LiptonSize.footnote,
                         lineHeight = 16.sp,
                         fontWeight = if (isSel) FontWeight.SemiBold else FontWeight.Medium,
                         maxLines = 1,

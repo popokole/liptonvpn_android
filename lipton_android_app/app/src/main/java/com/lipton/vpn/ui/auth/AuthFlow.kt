@@ -86,6 +86,7 @@ import com.lipton.vpn.ui.theme.TABULAR_NUMS
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import com.lipton.vpn.ui.theme.LiptonSize
 
 private const val SITE = "https://liptonone.online"
 private const val DEFAULT_BOT = "@liptonvpn_bot"
@@ -217,12 +218,12 @@ private fun WelcomeStep(
         OnbTitle("Интернет", "без границ.", tone)
         OnbSubtitle("Подключение в одно касание. Защита для всех ваших устройств — до ${deviceLimitOf(state)} штук.")
         Spacer(Modifier.height(20.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             FactTile(Modifier.weight(1f), "безлимит") { Icon(LiptonIcons.Infinity, null, tint = LiptonTheme.colors.stateTone(tone).a, modifier = Modifier.size(24.dp)) }
             FactTile(Modifier.weight(1f), "устройств") { FactValue("${deviceLimitOf(state)}") }
             if (countries.isNotEmpty()) {
                 FactTile(Modifier.weight(1f), countriesWord(countries.size)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         FactValue("${countries.size}")
                         Row(horizontalArrangement = Arrangement.spacedBy((-6).dp)) { countries.take(2).forEach { FlagCircle(it, size = 18.dp) } }
                     }
@@ -255,7 +256,7 @@ private fun WelcomeStep(
 private fun FactTile(modifier: Modifier, label: String, value: @Composable () -> Unit) {
     val c = LiptonTheme.colors
     Column(
-        modifier.height(72.dp).glass(RoundedCornerShape(20.dp), highlightHeight = 30.dp).padding(horizontal = 14.dp, vertical = 12.dp),
+        modifier.height(72.dp).glass(RoundedCornerShape(20.dp), highlightHeight = 30.dp).padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
         Box(Modifier.height(26.dp), contentAlignment = Alignment.CenterStart) { value() }
@@ -265,7 +266,7 @@ private fun FactTile(modifier: Modifier, label: String, value: @Composable () ->
 
 @Composable
 private fun FactValue(text: String) {
-    Text(text, style = MaterialTheme.typography.displaySmall.copy(fontSize = 22.sp), color = LiptonTheme.colors.text, maxLines = 1)
+    Text(text, style = MaterialTheme.typography.displaySmall.copy(fontSize = LiptonSize.title2), color = LiptonTheme.colors.text, maxLines = 1)
 }
 
 private fun countriesWord(n: Int): String = com.lipton.vpn.ui.tabs.pluralRu(n, "страна", "страны", "стран")
@@ -285,11 +286,11 @@ private fun HowtoStep(onBack: () -> Unit, onNext: () -> Unit) {
         OnbTitle("Как пользоваться", "VPN", tone)
         OnbSubtitle("Три простых шага — и вы под защитой.")
         Spacer(Modifier.height(20.dp))
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             HowtoRow(1, "Выберите сервер", "или Авто-баланс") {
                 Row(
-                    Modifier.height(36.dp).clip(RoundedCornerShape(999.dp)).background(c.text.copy(alpha = 0.06f))
-                        .border(1.dp, c.text.copy(alpha = 0.16f), RoundedCornerShape(999.dp)).padding(start = 6.dp, end = 12.dp),
+                    Modifier.height(36.dp).clip(RoundedCornerShape(percent = 50)).background(c.text.copy(alpha = 0.06f))
+                        .border(1.dp, c.text.copy(alpha = 0.16f), RoundedCornerShape(percent = 50)).padding(start = 4.dp, end = 12.dp),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     FlagCircle("DE", size = 22.dp)
@@ -331,7 +332,7 @@ private fun HowtoRow(n: Int, title: String, sub: String, trailing: @Composable R
 @Composable
 private fun MiniPill(text: String, filled: Boolean) {
     val c = LiptonTheme.colors
-    val shape = RoundedCornerShape(999.dp)
+    val shape = RoundedCornerShape(percent = 50)
     Row(
         Modifier
             .height(34.dp)
@@ -340,11 +341,11 @@ private fun MiniPill(text: String, filled: Boolean) {
             .border(1.dp, if (filled) Color.Transparent else c.text.copy(alpha = 0.18f), shape)
             .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         val fg = if (filled) (if (c.isDark) Color(0xFF050807) else Color.White) else c.text
         Icon(LiptonIcons.Power, null, tint = fg, modifier = Modifier.size(13.dp))
-        Text(text, style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp), color = fg, maxLines = 1)
+        Text(text, style = MaterialTheme.typography.labelLarge.copy(fontSize = LiptonSize.footnote), color = fg, maxLines = 1)
     }
 }
 
@@ -375,7 +376,7 @@ private fun StartStep(
         OnbSubtitle("Создайте аккаунт за минуту — через нашего Telegram-бота или по почте.")
         Spacer(Modifier.height(20.dp))
         GlassCard(Modifier.fillMaxWidth(), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp), onClick = onTelegram) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 Box(Modifier.size(48.dp).clip(CircleShape).background(Color(0xFF2AABEE)), contentAlignment = Alignment.Center) {
                     Icon(LiptonIcons.Send, null, tint = Color.White, modifier = Modifier.size(22.dp))
                 }
@@ -390,7 +391,7 @@ private fun StartStep(
         PrimaryButton("Создать аккаунт в Telegram", onClick = onTelegram, tone = ButtonTone.WARN, icon = LiptonIcons.Send, trailingIcon = LiptonIcons.ArrowRight, modifier = Modifier.fillMaxWidth())
         Spacer(Modifier.height(12.dp))
         SecondaryPill("Создать по почте", onClick = onEmail, icon = LiptonIcons.Mail)
-        Row(Modifier.fillMaxWidth().padding(top = 14.dp), horizontalArrangement = Arrangement.Center) {
+        Row(Modifier.fillMaxWidth().padding(top = 16.dp), horizontalArrangement = Arrangement.Center) {
             Text("Нажимая, вы соглашаетесь с ", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium), color = c.text.copy(alpha = 0.55f))
             LinkText("условиями", onTerms)
         }
@@ -463,7 +464,7 @@ private fun EmailStep(
         LoginTabs(LoginTab.EMAIL, onTab)
         Text(
             "Почта",
-            style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
+            style = MaterialTheme.typography.labelLarge.copy(fontSize = LiptonSize.footnote),
             color = c.text.copy(alpha = 0.7f),
             modifier = Modifier.padding(top = 20.dp, bottom = 8.dp, start = 2.dp),
         )
@@ -564,7 +565,7 @@ private fun SiteCodeStep(vm: MainViewModel, onBack: (() -> Unit)?, onTab: (Login
         LogoRow(tone)
         OnbTitle("Один код.", "Ваш аккаунт.", tone)
         LoginTabs(LoginTab.CODE, onTab)
-        OnbSubtitle(boldParts("Откройте **liptonone.online** → **Кабинет** → **Подключение** → **«Получить код»**", c.text), Modifier.padding(top = 6.dp))
+        OnbSubtitle(boldParts("Откройте **liptonone.online** → **Кабинет** → **Подключение** → **«Получить код»**", c.text), Modifier.padding(top = 4.dp))
         Spacer(Modifier.height(20.dp))
         CodeBoxes(code, 4, { code = it; err = null }, tone, onComplete = login)
         ErrorText(err)
@@ -644,7 +645,7 @@ private fun TelegramStep(
         OnbSubtitle(boldParts("Мы открыли бота **$bot** — нажмите в нём «Старт» и подтвердите вход. Приложение войдёт само.", c.text))
         Spacer(Modifier.height(22.dp))
         GlassCard(Modifier.fillMaxWidth(), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 Box(Modifier.size(44.dp), contentAlignment = Alignment.Center) {
                     if (token != null && err == null) {
                         CircularProgressIndicator(color = c.stateTone(tone).a, strokeWidth = 2.dp, modifier = Modifier.size(44.dp))
@@ -768,7 +769,7 @@ fun LoginSuccessScreen(state: UiState, onContinue: () -> Unit) {
             },
         )
         Spacer(Modifier.height(20.dp))
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             val left = daysLeft(state.accountPeriodEnd)
             if (active) {
                 val title = state.accountOverlay?.tariffTitle?.takeIf { it.isNotBlank() }
@@ -815,12 +816,12 @@ private fun SuccessRow(
     val c = LiptonTheme.colors
     val accent = c.stateTone(if (warn) AuroraTone.OFF else AuroraTone.ON).a
     Row(
-        Modifier.fillMaxWidth().height(64.dp).glass(RoundedCornerShape(20.dp), highlightHeight = 28.dp).padding(horizontal = 14.dp),
+        Modifier.fillMaxWidth().height(64.dp).glass(RoundedCornerShape(20.dp), highlightHeight = 28.dp).padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Box(
-            Modifier.size(36.dp).clip(RoundedCornerShape(11.dp)).background(accent.copy(alpha = 0.14f)).border(1.dp, accent.copy(alpha = 0.32f), RoundedCornerShape(11.dp)),
+            Modifier.size(36.dp).clip(RoundedCornerShape(12.dp)).background(accent.copy(alpha = 0.14f)).border(1.dp, accent.copy(alpha = 0.32f), RoundedCornerShape(12.dp)),
             contentAlignment = Alignment.Center,
         ) { Icon(icon, null, tint = accent, modifier = Modifier.size(17.dp)) }
         Column(Modifier.weight(1f)) {
@@ -844,9 +845,9 @@ private fun DeviceSlots(used: Int, limit: Int) {
     Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
         for (i in 0 until limit.coerceIn(1, 6)) {
             Box(
-                Modifier.width(9.dp).height(14.dp).clip(RoundedCornerShape(3.dp))
+                Modifier.width(9.dp).height(14.dp).clip(RoundedCornerShape(4.dp))
                     .background(if (i < used) t.a else Color.Transparent)
-                    .border(1.dp, if (i < used) Color.Transparent else c.text.copy(alpha = 0.3f), RoundedCornerShape(3.dp)),
+                    .border(1.dp, if (i < used) Color.Transparent else c.text.copy(alpha = 0.3f), RoundedCornerShape(4.dp)),
             )
         }
     }

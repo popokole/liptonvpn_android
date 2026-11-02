@@ -114,6 +114,8 @@ import com.lipton.vpn.ui.theme.LiptonTheme
 import com.lipton.vpn.ui.theme.TABULAR_NUMS
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
+import com.lipton.vpn.ui.theme.LiptonSize
+import androidx.compose.material3.minimumInteractiveComponentSize
 
 /**
  * Вкладка «Главная» по макетам new-combo-stats/off/nosub:
@@ -248,7 +250,7 @@ private fun ConnectHero(
             VpnStatus.ERROR -> "Не удалось подключиться"
             VpnStatus.DISCONNECTED -> "Не защищено"
         }
-        Row(Modifier.height(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.height(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             StatusDot(stateTone.a)
             AnimatedContent(eyebrow, transitionSpec = { fadeIn(tween(260)) togetherWith fadeOut(tween(160)) }, label = "eyebrow") { t ->
                 Text(t.uppercase(), style = LiptonText.eyebrow, color = eyebrowColor, maxLines = 1)
@@ -336,7 +338,7 @@ private fun ServerChip(state: UiState, onClick: () -> Unit) {
     val c = LiptonTheme.colors
     val servers = state.subscriptions.flatMap { it.servers }
     val active = servers.find { it.id == state.activeServerId } ?: servers.defaultServer()
-    val shape = RoundedCornerShape(999.dp)
+    val shape = RoundedCornerShape(percent = 50)
     Row(
         Modifier
             .height(44.dp)
@@ -345,10 +347,10 @@ private fun ServerChip(state: UiState, onClick: () -> Unit) {
             .background(c.pillDarkFill)
             .border(1.dp, if (c.isDark) Color.White.copy(alpha = 0.18f) else c.pillDarkBorder, shape)
             .clickable(onClick = onClick)
-            .padding(start = 10.dp, end = 14.dp)
+            .padding(start = 12.dp, end = 16.dp)
             .semantics { contentDescription = "Сменить сервер" },
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         if (active == null) {
             Icon(LiptonIcons.Globe, null, tint = c.text2, modifier = Modifier.size(20.dp))
@@ -469,7 +471,7 @@ private fun SeesYouTile(state: UiState, stats: StatsState, connected: Boolean, t
                         stats.ipLoading -> "Проверяем…"
                         else -> "Нет данных"
                     },
-                    style = MaterialTheme.typography.titleMedium.copy(fontSize = 17.sp, lineHeight = 24.sp),
+                    style = MaterialTheme.typography.titleMedium.copy(fontSize = LiptonSize.body, lineHeight = 24.sp),
                     color = c.text, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
                 Text(
@@ -482,12 +484,12 @@ private fun SeesYouTile(state: UiState, stats: StatsState, connected: Boolean, t
                 )
             }
             if (connected) {
-                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     val ping = stats.pingMs
                     SignalBars(pingLevel(ping), c.pingColor(ping), glow = true)
                     Text(
                         ping?.let { "$it мс" } ?: "—",
-                        style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp, lineHeight = 16.sp, fontFeatureSettings = TABULAR_NUMS),
+                        style = MaterialTheme.typography.labelLarge.copy(fontSize = LiptonSize.footnote, lineHeight = 16.sp, fontFeatureSettings = TABULAR_NUMS),
                         color = c.text, maxLines = 1,
                     )
                 }
@@ -583,7 +585,7 @@ private fun TariffTile(state: UiState, t: StateTone, onRenew: () -> Unit) {
         Spacer(Modifier.height(12.dp))
         Row(Modifier.fillMaxWidth().height(44.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(title, style = MaterialTheme.typography.titleMedium.copy(fontSize = 17.sp, lineHeight = 24.sp), color = c.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(title, style = MaterialTheme.typography.titleMedium.copy(fontSize = LiptonSize.body, lineHeight = 24.sp), color = c.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(sub, style = MaterialTheme.typography.bodySmall.copy(fontFeatureSettings = TABULAR_NUMS), color = c.text.copy(alpha = 0.72f), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             GlassButton("Продлить", onClick = onRenew)
@@ -645,7 +647,7 @@ private fun TodayTile(week: List<com.lipton.vpn.data.DayTraffic>, t: StateTone, 
             }
         }
         Spacer(Modifier.weight(1f))
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             TrafficLine(LiptonIcons.ArrowDown, t.a, formatTrafficInline(today?.rx ?: 0L), "приём")
             TrafficLine(LiptonIcons.ArrowUp, t.b, formatTrafficInline(today?.tx ?: 0L), "отдача")
         }
@@ -699,7 +701,7 @@ private fun ProtectionTile(connected: Boolean, stats: StatsState, t: StateTone, 
             color = c.text.copy(alpha = 0.7f), maxLines = 1,
         )
         Spacer(Modifier.weight(1f))
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             items.forEachIndexed { i, (label, ok) ->
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     ToneCircleIcon(
@@ -815,7 +817,7 @@ private fun NoSubHero(onSubscribe: () -> Unit, onPromo: () -> Unit, trial: (@Com
     val c = LiptonTheme.colors
     val warn = c.stateTone(AuroraTone.NO_SUB)
     Column(Modifier.fillMaxWidth().padding(top = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Row(Modifier.height(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.height(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             StatusDot(warn.a)
             Text("НЕ ЗАЩИЩЕНО", style = LiptonText.eyebrow, color = c.stateText(AuroraTone.NO_SUB))
         }
@@ -824,7 +826,7 @@ private fun NoSubHero(onSubscribe: () -> Unit, onPromo: () -> Unit, trial: (@Com
             "Подключите\nзащиту",
             style = MaterialTheme.typography.headlineLarge.copy(
                 fontFamily = MaterialTheme.typography.displayLarge.fontFamily,
-                fontWeight = FontWeight.SemiBold, fontSize = 34.sp, lineHeight = 42.sp,
+                fontWeight = FontWeight.SemiBold, fontSize = LiptonSize.large, lineHeight = 42.sp,
                 shadow = if (c.isDark) Shadow(warn.a.copy(alpha = 0.3f), Offset.Zero, 40f) else null,
             ),
             color = c.text,
@@ -949,16 +951,16 @@ private fun BypassTariffCard(t: Tariff, onPay: (String?) -> Unit) {
 @Composable
 fun BypassBadge(text: String, modifier: Modifier = Modifier) {
     val c = LiptonTheme.colors
-    val shape = RoundedCornerShape(999.dp)
+    val shape = RoundedCornerShape(percent = 50)
     Row(
         modifier
             .height(20.dp)
             .clip(shape)
             .background(if (c.isDark) Color(0xEB0C0E1A) else Color(0xF2FFFFFF))
             .border(1.dp, Brush.horizontalGradient(listOf(Color(0xFF3B6BFF), Color(0xFF8B5CF6))), shape)
-            .padding(horizontal = 9.dp),
+            .padding(horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(5.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Box(Modifier.size(5.dp).clip(CircleShape).background(Brush.linearGradient(listOf(Color(0xFF3B6BFF), Color(0xFF8B5CF6)))))
         Text(text, style = MaterialTheme.typography.labelMedium, color = if (c.isDark) Color(0xFFC8D1FF) else Color(0xFF3B5BFF), maxLines = 1)
@@ -982,7 +984,7 @@ private fun IncludedTile(icon: androidx.compose.ui.graphics.vector.ImageVector, 
     GlassCard(modifier.fillMaxSize(), contentPadding = TilePadding) {
         ToneCircleIcon(icon, tone.a, size = 40.dp, iconSize = 18.dp, glow = true)
         Spacer(Modifier.weight(1f))
-        Text(title, style = MaterialTheme.typography.titleMedium.copy(fontSize = 17.sp, lineHeight = 24.sp), color = c.text, maxLines = 1)
+        Text(title, style = MaterialTheme.typography.titleMedium.copy(fontSize = LiptonSize.body, lineHeight = 24.sp), color = c.text, maxLines = 1)
         Text(sub, style = MaterialTheme.typography.bodySmall, color = c.text.copy(alpha = 0.72f), maxLines = 1, modifier = Modifier.padding(top = 2.dp))
     }
 }
@@ -1001,10 +1003,10 @@ private fun UpdateBanner(
     val c = LiptonTheme.colors
     val accent = c.accentDeepOrAccent()
     GlassCard(Modifier.fillMaxWidth(), contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             ToneCircleIcon(LiptonIcons.ArrowUp, accent, size = 32.dp, iconSize = 14.dp)
             Column(Modifier.weight(1f)) {
-                Text("Доступно обновление v$version", style = MaterialTheme.typography.titleSmall.copy(fontSize = 13.sp), color = c.text)
+                Text("Доступно обновление v$version", style = MaterialTheme.typography.titleSmall.copy(fontSize = LiptonSize.footnote), color = c.text)
                 Text(
                     when {
                         downloadedApkPath != null -> "Готово к установке"
@@ -1021,7 +1023,8 @@ private fun UpdateBanner(
                 else -> GlassButton("Скачать", onClick = onDownload, height = 32.dp)
             }
             Box(
-                Modifier
+                Modifier.minimumInteractiveComponentSize()
+                    // ai-design-check-ignore-next-line tap-target -- зона нажатия 48dp даёт minimumInteractiveComponentSize(), видимый кружок меньше
                     .size(28.dp)
                     .clip(CircleShape)
                     .clickable(enabled = downloadProgress == null, onClick = onDismiss),
@@ -1033,7 +1036,7 @@ private fun UpdateBanner(
         if (downloadProgress != null && downloadedApkPath == null) {
             LinearProgressIndicator(
                 progress = { downloadProgress / 100f },
-                modifier = Modifier.fillMaxWidth().padding(top = 10.dp).clip(RoundedCornerShape(4.dp)),
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp).clip(RoundedCornerShape(4.dp)),
                 color = accent,
                 trackColor = accent.copy(alpha = 0.15f),
             )

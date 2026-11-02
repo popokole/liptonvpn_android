@@ -89,6 +89,7 @@ import com.lipton.vpn.ui.tabs.tariffTitleFor
 import com.lipton.vpn.ui.theme.LiptonTheme
 import com.lipton.vpn.ui.theme.TABULAR_NUMS
 import com.lipton.vpn.ui.theme.UnboundedFamily
+import com.lipton.vpn.ui.theme.LiptonSize
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  История платежей (new-scr-payments) и способ оплаты с отвязкой карты
@@ -137,7 +138,7 @@ fun PaymentsHistoryScreen(state: UiState, viewModel: MainViewModel, onBack: () -
             else -> {
                 SummaryCard(list)
                 groupPaymentsByMonth(list).forEach { (month, txs) ->
-                    SectionHeader(month, Modifier.padding(top = 26.dp, bottom = 8.dp))
+                    SectionHeader(month, Modifier.padding(top = 28.dp, bottom = 8.dp))
                     GlassGroup {
                         txs.forEachIndexed { i, t ->
                             if (i > 0) GroupDivider()
@@ -171,9 +172,9 @@ private fun SummaryCard(list: List<TxItem>) {
         Text(
             buildAnnotatedString {
                 append(rubles(s.totalKopeks).replace("₽", "").trim())
-                withStyle(SpanStyle(fontSize = 24.sp, color = c.text.copy(alpha = 0.6f))) { append(" ₽") }
+                withStyle(SpanStyle(fontSize = LiptonSize.title2, color = c.text.copy(alpha = 0.6f))) { append(" ₽") }
             },
-            style = TextStyle(fontFamily = UnboundedFamily, fontWeight = FontWeight.SemiBold, fontSize = 40.sp, fontFeatureSettings = TABULAR_NUMS),
+            style = TextStyle(fontFamily = UnboundedFamily, fontWeight = FontWeight.SemiBold, fontSize = LiptonSize.display, fontFeatureSettings = TABULAR_NUMS),
             color = c.text,
         )
         Spacer(Modifier.height(12.dp))
@@ -330,7 +331,7 @@ fun PaymentMethodScreen(state: UiState, viewModel: MainViewModel, onBack: () -> 
             sheetState = sheetState,
             containerColor = c.surfaceSheet,
             scrimColor = Color.Black.copy(alpha = 0.55f),
-            dragHandle = { Box(Modifier.padding(top = 10.dp).size(width = 36.dp, height = 4.dp).clip(RoundedCornerShape(2.dp)).background(c.text.copy(alpha = 0.25f))) },
+            dragHandle = { Box(Modifier.padding(top = 12.dp).size(width = 36.dp, height = 4.dp).clip(RoundedCornerShape(2.dp)).background(c.text.copy(alpha = 0.25f))) },
         ) {
             Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 20.dp).padding(top = 16.dp, bottom = 20.dp)) {
                 val warn = c.stateTone(AuroraTone.OFF).a
@@ -361,7 +362,7 @@ fun PaymentMethodScreen(state: UiState, viewModel: MainViewModel, onBack: () -> 
                 )
                 Spacer(Modifier.height(14.dp))
                 Row(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.text.copy(alpha = 0.04f)).border(1.dp, c.text.copy(alpha = 0.10f), RoundedCornerShape(14.dp)).padding(12.dp),
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.text.copy(alpha = 0.04f)).border(1.dp, c.text.copy(alpha = 0.10f), RoundedCornerShape(16.dp)).padding(12.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     Icon(LiptonIcons.Timer, null, tint = c.text.copy(alpha = 0.6f), modifier = Modifier.size(14.dp).padding(top = 1.dp))
@@ -371,7 +372,7 @@ fun PaymentMethodScreen(state: UiState, viewModel: MainViewModel, onBack: () -> 
                 PrimaryButton("Оставить карту", onClick = { sheet = false }, tone = ButtonTone.ACCENT, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(12.dp))
                 val busy = state.profileBusy == "card"
-                val sh = RoundedCornerShape(999.dp)
+                val sh = RoundedCornerShape(percent = 50)
                 Row(
                     Modifier.fillMaxWidth().height(52.dp).clip(sh).background(warn.copy(alpha = 0.06f)).border(1.dp, warn.copy(alpha = 0.45f), sh)
                         .clickable(enabled = !busy, role = Role.Button) { viewModel.unlinkCard { sheet = false } },
@@ -423,13 +424,14 @@ private fun BankCard(last4: String, exp: String?, brand: String?) {
         Column(Modifier.align(Alignment.BottomStart)) {
             Text(
                 "•••• $last4",
-                style = TextStyle(fontFamily = UnboundedFamily, fontWeight = FontWeight.SemiBold, fontSize = 26.sp, letterSpacing = 1.sp, fontFeatureSettings = TABULAR_NUMS),
+                style = TextStyle(fontFamily = UnboundedFamily, fontWeight = FontWeight.SemiBold, fontSize = LiptonSize.title1, letterSpacing = 1.sp, fontFeatureSettings = TABULAR_NUMS),
                 color = c.text,
             )
             Spacer(Modifier.height(8.dp))
             if (!exp.isNullOrBlank()) Text("действует до $exp", style = MaterialTheme.typography.bodySmall, color = c.text.copy(alpha = 0.65f))
         }
         if (!brand.isNullOrBlank()) {
+            // ai-design-check-ignore-next-line no-heavy-headings -- логотип платёжной системы на карте, не заголовок
             Text(
                 brand.uppercase(),
                 style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold, fontStyle = FontStyle.Italic),

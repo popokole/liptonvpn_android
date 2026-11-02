@@ -116,6 +116,7 @@ import com.lipton.vpn.ui.theme.Green3
 import com.lipton.vpn.ui.theme.LiptonTheme
 import com.lipton.vpn.ui.theme.LocalLiptonColors
 import com.lipton.vpn.ui.theme.Tokens
+import com.lipton.vpn.ui.theme.LiptonSize
 
 private const val BOT_URL = "https://t.me/liptonvpn_bot"
 
@@ -405,7 +406,7 @@ fun MainScreen(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .navigationBarsPadding()
-                    .padding(bottom = 26.dp),
+                    .padding(bottom = 28.dp),
             ) {
                 LiptonTabBar(
                     selected = currentTab ?: LiptonTab.HOME,
@@ -515,18 +516,18 @@ private fun ClipboardImportBanner(state: UiState, viewModel: MainViewModel, acti
                     .padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text("📋 Найдена ссылка на подписку", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = lc.textPrimary)
-                Text(url.take(60) + if (url.length > 60) "…" else "", fontSize = 12.sp, color = lc.textSecondary)
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Найдена ссылка на подписку", fontSize = LiptonSize.subhead, fontWeight = FontWeight.Bold, color = lc.textPrimary)
+                Text(url.take(60) + if (url.length > 60) "…" else "", fontSize = LiptonSize.caption, color = lc.textSecondary)
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Box(
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(12.dp))
                             .background(Brush.linearGradient(listOf(Green, Green3)))
                             .clickable { viewModel.importClipboardUrl(activity) }
-                            .padding(vertical = 13.dp),
+                            .padding(vertical = 12.dp),
                         contentAlignment = Alignment.Center,
-                    ) { Text("Добавить", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black) }
+                    ) { Text("Добавить", fontSize = LiptonSize.subhead, fontWeight = FontWeight.Bold, color = Color.Black) }
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -534,9 +535,9 @@ private fun ClipboardImportBanner(state: UiState, viewModel: MainViewModel, acti
                             .background(lc.cardBg)
                             .border(1.dp, lc.cardBorder, RoundedCornerShape(12.dp))
                             .clickable { viewModel.dismissClipboard() }
-                            .padding(vertical = 13.dp),
+                            .padding(vertical = 12.dp),
                         contentAlignment = Alignment.Center,
-                    ) { Text("Пропустить", fontSize = 14.sp, color = lc.textSecondary) }
+                    ) { Text("Пропустить", fontSize = LiptonSize.subhead, color = lc.textSecondary) }
                 }
             }
         }

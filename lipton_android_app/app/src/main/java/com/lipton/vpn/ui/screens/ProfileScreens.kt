@@ -244,9 +244,9 @@ private fun SearchField(value: String, onChange: (String) -> Unit, placeholder: 
             .fillMaxWidth()
             .height(48.dp)
             .glass(shape, highlightHeight = 24.dp)
-            .padding(horizontal = 14.dp),
+            .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Icon(LiptonIcons.Search, null, tint = c.text.copy(alpha = 0.5f), modifier = Modifier.size(16.dp))
         Box(Modifier.weight(1f)) {

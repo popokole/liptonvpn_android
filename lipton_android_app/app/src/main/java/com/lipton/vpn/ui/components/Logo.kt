@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.sp
 import com.lipton.vpn.R
 import com.lipton.vpn.ui.theme.LiptonTheme
 import com.lipton.vpn.ui.theme.Tokens
+import com.lipton.vpn.ui.theme.LiptonSize
 
 /** Логотип «три наклонные полоски» (res/drawable/ic_logo.xml). */
 @Composable
@@ -66,13 +67,13 @@ fun LogoTitle(modifier: Modifier = Modifier) {
     Row(
         modifier = modifier.semantics { contentDescription = "Lipton VPN" },
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         LogoBadge()
         Text(
             "Lipton VPN",
             style = MaterialTheme.typography.titleMedium.copy(
-                fontSize = 16.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.01).em,
+                fontSize = LiptonSize.body, lineHeight = 20.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.01).em,
             ),
             color = c.text,
             maxLines = 1,

@@ -1,0 +1,19 @@
+{
+  "ignore": [
+    "lipton_android_app/app/src/debug/**"
+  ],
+  "allow": {
+    "type-scale": [
+      "lipton_android_app/app/src/main/java/com/lipton/vpn/ui/theme/Type.kt"
+    ],
+    "no-heavy-headings": [
+      "lipton_android_app/app/src/main/java/com/lipton/vpn/ui/theme/Type.kt:FontWeight.ExtraBold"
+    ],
+    "spacing-scale": [
+      "lipton_android_app/**:1.dp",
+      "lipton_android_app/**:2.dp",
+      "lipton_android_app/**:3.dp"
+    ]
+  },
+  "//": "Type.kt — определение шкалы шрифтов и набор начертаний Onest, не экран. 1–3dp — оптические сдвиги иконок и волосяные обводки, ниже сетки 4dp намеренно"
+}

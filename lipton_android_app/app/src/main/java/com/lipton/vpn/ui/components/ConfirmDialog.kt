@@ -60,7 +60,7 @@ fun ConfirmDialog(
                 .clip(shape)
                 .background(c.surfaceSheet)
                 .border(1.dp, c.glassBorder, shape)
-                .padding(start = 22.dp, end = 22.dp, top = 24.dp, bottom = 18.dp),
+                .padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             if (icon != null) {
@@ -80,10 +80,10 @@ fun ConfirmDialog(
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
+                        .clip(RoundedCornerShape(16.dp))
                         .background(c.warn.copy(alpha = 0.08f))
-                        .border(1.dp, c.warn.copy(alpha = 0.28f), RoundedCornerShape(14.dp))
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                        .border(1.dp, c.warn.copy(alpha = 0.28f), RoundedCornerShape(16.dp))
+                        .padding(horizontal = 12.dp, vertical = 12.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     Icon(LiptonIcons.Alert, null, tint = c.warn, modifier = Modifier.size(16.dp).padding(top = 1.dp))
@@ -102,7 +102,7 @@ fun ConfirmDialog(
 @Composable
 private fun DialogButton(text: String, onClick: () -> Unit, filled: Boolean, color: Color, busy: Boolean = false) {
     val c = LiptonTheme.colors
-    val shape = RoundedCornerShape(999.dp)
+    val shape = RoundedCornerShape(percent = 50)
     Box(
         Modifier
             .fillMaxWidth()

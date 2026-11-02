@@ -268,10 +268,10 @@ private fun StatusLine(servers: List<ServerStatus>) {
         Box(
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 30.dp)
+                .padding(horizontal = 32.dp)
                 .padding(top = 3.dp)
                 .height(2.dp)
-                .clip(RoundedCornerShape(999.dp))
+                .clip(RoundedCornerShape(percent = 50))
                 .background(Brush.horizontalGradient(listOf(good.a.copy(alpha = 0.45f), good.b.copy(alpha = 0.35f)))),
         )
         Row(Modifier.fillMaxWidth()) {
@@ -320,7 +320,7 @@ private fun NewsCard(item: NewsItem, unread: Boolean, onRead: () -> Unit) {
             .border(1.dp, if (unread) accent.copy(alpha = 0.24f) else Color.Transparent, shape)
             .clickable(role = Role.Button) { expanded = !expanded; onRead() }
             .animateContentSize(tween(260))
-            .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 14.dp),
+            .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 16.dp),
     ) {
         Row(Modifier.fillMaxWidth().height(20.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (date != null) {
@@ -345,7 +345,7 @@ private fun NewsCard(item: NewsItem, unread: Boolean, onRead: () -> Unit) {
             )
         }
         Row(
-            Modifier.padding(top = 6.dp).height(32.dp),
+            Modifier.padding(top = 4.dp).height(32.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(2.dp),
         ) {

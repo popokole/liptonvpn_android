@@ -79,7 +79,7 @@ val LiptonTypography = Typography(
     ),
     // Заголовок онбординга
     headlineLarge = base.copy(
-        fontWeight = FontWeight.ExtraBold, fontSize = 32.sp, lineHeight = 40.sp, letterSpacing = (-0.025).em,
+        fontWeight = FontWeight.Bold, fontSize = 32.sp, lineHeight = 40.sp, letterSpacing = (-0.025).em,
     ),
     // Заголовок экрана («Серверы», «Профиль»)
     headlineMedium = base.copy(
@@ -126,4 +126,19 @@ object LiptonText {
     )
     /** Логи. */
     val mono = TextStyle(fontFamily = MonoFamily, fontSize = 12.sp, lineHeight = 18.sp)
+}
+
+/** Шкала размеров шрифта: только эти ступени, без «13.sp» в экранах. */
+object LiptonSize {
+    val caption2 = 11.sp
+    val caption = 12.sp
+    val footnote = 13.sp
+    val subhead = 15.sp
+    val body = 17.sp
+    val title3 = 20.sp
+    val title2 = 22.sp
+    val title1 = 28.sp
+    val large = 34.sp
+    val display = 40.sp
+    val hero = 56.sp
 }

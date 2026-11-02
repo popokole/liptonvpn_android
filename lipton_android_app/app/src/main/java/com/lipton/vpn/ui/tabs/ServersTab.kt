@@ -85,6 +85,7 @@ import com.lipton.vpn.ui.components.topAccentLine
 import com.lipton.vpn.ui.theme.LiptonTheme
 import com.lipton.vpn.ui.theme.TABULAR_NUMS
 import kotlinx.coroutines.delay
+import com.lipton.vpn.ui.theme.LiptonSize
 
 /**
  * Вкладка «Серверы» по макетам new-combo-servers(-bypass)-play:
@@ -237,7 +238,7 @@ private fun GroupTitle(
         Text(title, style = MaterialTheme.typography.titleLarge, color = c.text, maxLines = 1, modifier = Modifier.weight(1f))
         when {
             trailing != null -> trailing()
-            legend -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            legend -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 Row(Modifier.height(10.dp), horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.Bottom) {
                     listOf(4, 7, 10).forEach { h ->
                         Box(Modifier.width(2.dp).height(h.dp).clip(RoundedCornerShape(1.dp)).background(c.text.copy(alpha = 0.6f)))
@@ -290,13 +291,13 @@ private fun AutoBalanceCard(server: Server, selected: Boolean, onClick: () -> Un
             SelectCheck(selected, t.a)
         }
         Spacer(Modifier.height(20.dp))
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             Box(
                 Modifier
                     .size(52.dp)
-                    .clip(RoundedCornerShape(18.dp))
+                    .clip(RoundedCornerShape(20.dp))
                     .background(Brush.linearGradient(listOf(t.a.copy(alpha = 0.32f), t.b.copy(alpha = 0.16f))))
-                    .border(1.dp, t.a.copy(alpha = 0.45f), RoundedCornerShape(18.dp)),
+                    .border(1.dp, t.a.copy(alpha = 0.45f), RoundedCornerShape(20.dp)),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(LiptonIcons.Shuffle, null, tint = if (c.isDark) Color.White else c.accentDeep, modifier = Modifier.size(24.dp))
@@ -304,7 +305,7 @@ private fun AutoBalanceCard(server: Server, selected: Boolean, onClick: () -> Un
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
                     "Авто-баланс",
-                    style = MaterialTheme.typography.titleLarge.copy(fontSize = 22.sp, letterSpacing = (-0.44).sp),
+                    style = MaterialTheme.typography.titleLarge.copy(fontSize = LiptonSize.title2, letterSpacing = (-0.44).sp),
                     color = c.text, maxLines = 1,
                 )
                 Text(
@@ -373,7 +374,7 @@ private fun ServerRow(
                 )
             }
             .clickable(interactionSource = src, indication = null, role = Role.Button, onClick = onClick)
-            .padding(start = 14.dp, end = 16.dp),
+            .padding(start = 16.dp, end = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -393,7 +394,7 @@ private fun ServerRow(
             }
         }
         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(Modifier.height(18.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(Modifier.height(18.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 val ping = server.ping
                 SignalBars(pingLevel(ping), if (bypassStyle && ping != null) accent else c.pingColor(ping), small = true)
                 Text(
@@ -443,20 +444,20 @@ private fun BypassFeatureCard(server: Server, selected: Boolean, connected: Bool
             SelectCheck(selected, t.a)
         }
         Spacer(Modifier.height(20.dp))
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             Box(
                 Modifier
                     .size(52.dp)
-                    .clip(RoundedCornerShape(18.dp))
+                    .clip(RoundedCornerShape(20.dp))
                     .background(Brush.linearGradient(listOf(t.a.copy(alpha = 0.32f), t.b.copy(alpha = 0.18f))))
-                    .border(1.dp, t.a.copy(alpha = 0.45f), RoundedCornerShape(18.dp)),
+                    .border(1.dp, t.a.copy(alpha = 0.45f), RoundedCornerShape(20.dp)),
                 contentAlignment = Alignment.Center,
             ) { Icon(LiptonIcons.ShieldCheck, null, tint = if (c.isDark) Color.White else t.a, modifier = Modifier.size(24.dp)) }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
                         server.cleanName(),
-                        style = MaterialTheme.typography.titleLarge.copy(fontSize = 22.sp, letterSpacing = (-0.44).sp),
+                        style = MaterialTheme.typography.titleLarge.copy(fontSize = LiptonSize.title2, letterSpacing = (-0.44).sp),
                         color = c.text, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
                     )
                     FlagCircle(server.countryCode(), size = 18.dp, emoji = server.flagEmoji())
@@ -522,7 +523,7 @@ private fun BypassUpsellCard(state: UiState, sample: Server?, onBuy: () -> Unit)
                 Text(" / ${pluralDays(monthly.days)}", style = MaterialTheme.typography.bodySmall, color = c.text.copy(alpha = 0.65f))
             }
             Spacer(Modifier.weight(1f))
-            val bshape = RoundedCornerShape(999.dp)
+            val bshape = RoundedCornerShape(percent = 50)
             Box(
                 Modifier
                     .height(36.dp)
@@ -534,7 +535,7 @@ private fun BypassUpsellCard(state: UiState, sample: Server?, onBuy: () -> Unit)
                     .padding(horizontal = 16.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                Text("Купить тариф", style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp), color = if (c.isDark) Color.White else t.a)
+                Text("Купить тариф", style = MaterialTheme.typography.labelLarge.copy(fontSize = LiptonSize.footnote), color = if (c.isDark) Color.White else t.a)
             }
         }
     }

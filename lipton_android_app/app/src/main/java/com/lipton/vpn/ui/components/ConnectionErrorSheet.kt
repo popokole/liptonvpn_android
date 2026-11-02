@@ -18,6 +18,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lipton.vpn.ConnectionError
 import com.lipton.vpn.ui.theme.*
+import com.lipton.vpn.ui.theme.LiptonSize
+import androidx.compose.ui.graphics.vector.ImageVector
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -30,40 +32,40 @@ fun ConnectionErrorSheet(
 ) {
     val lc = LocalLiptonColors.current
 
-    data class ErrorInfo(val icon: String, val title: String, val description: String)
+    data class ErrorInfo(val icon: ImageVector, val title: String, val description: String)
     val info = when (error) {
         ConnectionError.Timeout -> ErrorInfo(
-            "⏱",
+            LiptonIcons.Timer,
             "Время подключения истекло",
             "Сервер не ответил за 20 секунд. Попробуйте другой сервер или повторите позже.",
         )
         ConnectionError.NoInternet -> ErrorInfo(
-            "📡",
+            LiptonIcons.Wifi,
             "Нет соединения с интернетом",
             "Проверьте подключение к Wi-Fi или мобильным данным.",
         )
         ConnectionError.DnsFail -> ErrorInfo(
-            "🔍",
+            LiptonIcons.Search,
             "Ошибка DNS",
             "Не удалось разрешить адрес сервера. Проверьте интернет или смените сервер.",
         )
         ConnectionError.ServerUnreachable -> ErrorInfo(
-            "🚫",
+            LiptonIcons.XCircle,
             "Сервер недоступен",
             "Не удалось установить соединение. Сервер может быть временно недоступен.",
         )
         ConnectionError.XrayCrash -> ErrorInfo(
-            "💥",
+            LiptonIcons.Alert,
             "Ошибка ядра VPN",
             "Ядро xray завершилось с ошибкой. Попробуйте другой сервер.",
         )
         ConnectionError.Tun2socksFail -> ErrorInfo(
-            "⚙",
+            LiptonIcons.Terminal,
             "Ошибка VPN-интерфейса",
             "Не удалось настроить VPN. Перезапустите приложение.",
         )
         is ConnectionError.Unknown -> ErrorInfo(
-            "⚠",
+            LiptonIcons.Alert,
             "Ошибка подключения",
             "Не удалось установить VPN соединение. Проверьте сервер и интернет.",
         )
@@ -82,11 +84,11 @@ fun ConnectionErrorSheet(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text(info.icon, fontSize = 42.sp)
+            Icon(info.icon, contentDescription = null, tint = Green, modifier = Modifier.size(40.dp))
 
             Text(
                 text       = info.title,
-                fontSize   = 18.sp,
+                fontSize = LiptonSize.body,
                 fontWeight = FontWeight.Bold,
                 color      = lc.textPrimary,
                 textAlign  = TextAlign.Center,
@@ -94,7 +96,7 @@ fun ConnectionErrorSheet(
 
             Text(
                 text       = info.description,
-                fontSize   = 13.sp,
+                fontSize = LiptonSize.footnote,
                 color      = lc.textSecondary,
                 textAlign  = TextAlign.Center,
                 lineHeight = 19.sp,
@@ -105,15 +107,15 @@ fun ConnectionErrorSheet(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
+                    .clip(RoundedCornerShape(16.dp))
                     .background(Brush.linearGradient(listOf(Green, Green3)))
                     .clickable(onClick = onRetry)
-                    .padding(vertical = 15.dp),
+                    .padding(vertical = 16.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     "↻  Повторить",
-                    fontSize   = 15.sp,
+                    fontSize = LiptonSize.subhead,
                     fontWeight = FontWeight.Bold,
                     color      = Color.Black,
                 )
@@ -121,21 +123,21 @@ fun ConnectionErrorSheet(
 
             Row(
                 modifier            = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .clip(RoundedCornerShape(14.dp))
+                        .clip(RoundedCornerShape(16.dp))
                         .background(lc.greenCard)
-                        .border(1.dp, lc.greenBorder, RoundedCornerShape(14.dp))
+                        .border(1.dp, lc.greenBorder, RoundedCornerShape(16.dp))
                         .clickable(onClick = onSwitchServer)
-                        .padding(vertical = 13.dp),
+                        .padding(vertical = 12.dp),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
                         "Сменить сервер",
-                        fontSize   = 13.sp,
+                        fontSize = LiptonSize.footnote,
                         fontWeight = FontWeight.SemiBold,
                         color      = lc.textPrimary,
                     )
@@ -144,16 +146,16 @@ fun ConnectionErrorSheet(
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .clip(RoundedCornerShape(14.dp))
+                        .clip(RoundedCornerShape(16.dp))
                         .background(lc.greenCard)
-                        .border(1.dp, lc.greenBorder, RoundedCornerShape(14.dp))
+                        .border(1.dp, lc.greenBorder, RoundedCornerShape(16.dp))
                         .clickable(onClick = onHelp)
-                        .padding(vertical = 13.dp),
+                        .padding(vertical = 12.dp),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
                         "✈  Помощь",
-                        fontSize   = 13.sp,
+                        fontSize = LiptonSize.footnote,
                         fontWeight = FontWeight.SemiBold,
                         color      = lc.textPrimary,
                     )

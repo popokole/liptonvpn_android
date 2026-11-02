@@ -108,6 +108,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Calendar
 import java.util.concurrent.ConcurrentHashMap
+import com.lipton.vpn.ui.theme.LiptonSize
+import androidx.compose.material3.minimumInteractiveComponentSize
 
 /** Переходы из профиля в подэкраны и наружу. */
 class ProfileActions(
@@ -474,7 +476,7 @@ private fun GuestProfile(state: UiState, viewModel: MainViewModel, actions: Prof
                     ) { Icon(LiptonIcons.Timer, null, tint = Color(0xFF04140C), modifier = Modifier.size(11.dp)) }
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("ГОСТЕВОЙ РЕЖИМ", style = LiptonText.section.copy(fontSize = 11.sp), color = c.stateText(AuroraTone.ON))
+                    Text("ГОСТЕВОЙ РЕЖИМ", style = LiptonText.section.copy(fontSize = LiptonSize.caption2), color = c.stateText(AuroraTone.ON))
                     Text("Вы без аккаунта", style = MaterialTheme.typography.titleLarge, color = c.text)
                     if (!g.ended) {
                         val now = rememberNowTicker()
@@ -503,7 +505,7 @@ private fun GuestProfile(state: UiState, viewModel: MainViewModel, actions: Prof
                         withStyle(SpanStyle(color = c.stateText(AuroraTone.ON), fontWeight = FontWeight.Bold)) { append("Войти") }
                     },
                     style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.clip(RoundedCornerShape(999.dp)).clickable(role = Role.Button) { actions.onAuth("login") }.padding(horizontal = 12.dp, vertical = 10.dp),
+                    modifier = Modifier.clip(RoundedCornerShape(percent = 50)).clickable(role = Role.Button) { actions.onAuth("login") }.padding(horizontal = 12.dp, vertical = 12.dp),
                 )
             }
         }
@@ -588,7 +590,7 @@ private fun ProfileHeader(state: UiState) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
                 name,
-                style = MaterialTheme.typography.titleLarge.copy(fontSize = 18.sp, lineHeight = 24.sp),
+                style = MaterialTheme.typography.titleLarge.copy(fontSize = LiptonSize.body, lineHeight = 24.sp),
                 color = c.text, maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -759,7 +761,7 @@ private fun SubscriptionCard(state: UiState, actions: ProfileActions) {
 @Composable
 private fun WhitePill(text: String, t: StateTone, modifier: Modifier, onClick: () -> Unit) {
     val c = LiptonTheme.colors
-    val shape = RoundedCornerShape(999.dp)
+    val shape = RoundedCornerShape(percent = 50)
     Box(
         modifier
             .height(44.dp)
@@ -785,7 +787,7 @@ private fun LinkCard(state: UiState, busy: Boolean, onCopied: () -> Unit, onReli
             ruDayMonth(state.linkUpdatedAt)?.let { Text("обновлена $it", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium), color = c.text.copy(alpha = 0.55f)) }
         }
         Spacer(Modifier.height(12.dp))
-        val fieldShape = RoundedCornerShape(14.dp)
+        val fieldShape = RoundedCornerShape(16.dp)
         Row(
             Modifier
                 .fillMaxWidth()
@@ -793,7 +795,7 @@ private fun LinkCard(state: UiState, busy: Boolean, onCopied: () -> Unit, onReli
                 .clip(fieldShape)
                 .background(c.text.copy(alpha = if (c.isDark) 0.04f else 0.04f))
                 .border(1.dp, c.text.copy(alpha = 0.08f), fieldShape)
-                .padding(start = 14.dp, end = 6.dp),
+                .padding(start = 16.dp, end = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
@@ -805,7 +807,8 @@ private fun LinkCard(state: UiState, busy: Boolean, onCopied: () -> Unit, onReli
                 modifier = Modifier.weight(1f),
             )
             Box(
-                Modifier
+                Modifier.minimumInteractiveComponentSize()
+                    // ai-design-check-ignore-next-line tap-target -- зона нажатия 48dp даёт minimumInteractiveComponentSize(), видимый кружок меньше
                     .size(32.dp)
                     .clip(CircleShape)
                     .background(c.text.copy(alpha = 0.05f))
@@ -903,7 +906,7 @@ private fun DevicesGroup(state: UiState, onRevoke: (String) -> Unit, onRevokeAll
                 )
             }
             // Слоты: занятые — иконкой, свободные — пунктиром
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 val shown = devices.orEmpty().take(limit)
                 for (i in 0 until limit.coerceAtMost(6)) {
                     val d = shown.getOrNull(i)
@@ -957,7 +960,7 @@ private fun DevicesGroup(state: UiState, onRevoke: (String) -> Unit, onRevokeAll
                         Icon(LiptonIcons.Unlink, null, tint = c.stateText(AuroraTone.OFF), modifier = Modifier.size(16.dp))
                     }
                     Spacer(Modifier.width(8.dp))
-                    Text("Отвязать все устройства", style = MaterialTheme.typography.labelLarge.copy(fontSize = 15.sp), color = c.stateText(AuroraTone.OFF))
+                    Text("Отвязать все устройства", style = MaterialTheme.typography.labelLarge.copy(fontSize = LiptonSize.subhead), color = c.stateText(AuroraTone.OFF))
                 }
             }
         }
@@ -987,7 +990,8 @@ private fun DeviceRow(d: DeviceItem, isThis: Boolean, busy: Boolean, onRevoke: (
             )
         }
         Box(
-            Modifier
+            Modifier.minimumInteractiveComponentSize()
+                // ai-design-check-ignore-next-line tap-target -- зона нажатия 48dp даёт minimumInteractiveComponentSize(), видимый кружок меньше
                 .size(36.dp)
                 .clip(CircleShape)
                 .background(c.text.copy(alpha = 0.05f))
@@ -1051,7 +1055,7 @@ private fun ThemeBlock(current: AppTheme) {
 @Composable
 private fun OutlineWarnButton(text: String, icon: ImageVector, busy: Boolean, onClick: () -> Unit) {
     val c = LiptonTheme.colors
-    val shape = RoundedCornerShape(999.dp)
+    val shape = RoundedCornerShape(percent = 50)
     Row(
         Modifier
             .fillMaxWidth()
@@ -1073,7 +1077,7 @@ private fun OutlineWarnButton(text: String, icon: ImageVector, busy: Boolean, on
 @Composable
 private fun LogoutButton(onClick: () -> Unit) {
     val c = LiptonTheme.colors
-    val shape = RoundedCornerShape(999.dp)
+    val shape = RoundedCornerShape(percent = 50)
     Row(
         Modifier
             .fillMaxWidth()
