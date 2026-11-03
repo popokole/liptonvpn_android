@@ -284,21 +284,21 @@ private fun HowtoStep(onBack: () -> Unit, onNext: () -> Unit) {
     OnbPage(tone = tone, topBar = { RoundIconButton(LiptonIcons.ChevronLeft, "Назад", onBack) }) {
         LogoRow(tone, step = 1)
         OnbTitle("Как пользоваться", "VPN", tone)
-        OnbSubtitle("Три простых шага — и вы под защитой.")
+        OnbSubtitle("Одно касание — и вы под защитой. Сервер выбирать не нужно.")
         Spacer(Modifier.height(20.dp))
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            HowtoRow(1, "Выберите сервер", "или Авто-баланс") {
+            HowtoRow(1, "Нажмите «Подключить»", "Авто-баланс сам выберет быстрый сервер") { MiniPill("Подключить", filled = true) }
+            HowtoRow(2, "Страну можно сменить", "в разделе «Серверы», если нужно") {
                 Row(
                     Modifier.height(36.dp).clip(RoundedCornerShape(percent = 50)).background(c.text.copy(alpha = 0.06f))
                         .border(1.dp, c.text.copy(alpha = 0.16f), RoundedCornerShape(percent = 50)).padding(start = 4.dp, end = 12.dp),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    FlagCircle("DE", size = 22.dp)
-                    Text("Германия", style = MaterialTheme.typography.labelLarge, color = c.text)
+                    Icon(LiptonIcons.Shuffle, null, tint = c.text, modifier = Modifier.padding(start = 4.dp).size(16.dp))
+                    Text("Авто-баланс", style = MaterialTheme.typography.labelLarge, color = c.text)
                     Icon(LiptonIcons.ChevronRight, null, tint = c.text.copy(alpha = 0.6f), modifier = Modifier.size(12.dp))
                 }
             }
-            HowtoRow(2, "Подключитесь", "в одно касание") { MiniPill("Подключить", filled = true) }
             HowtoRow(3, "Отключитесь", "когда нужно") { MiniPill("Отключить", filled = false) }
         }
         Spacer(Modifier.height(24.dp))
