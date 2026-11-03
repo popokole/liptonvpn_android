@@ -55,6 +55,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lipton.vpn.Features
 import com.lipton.vpn.MainViewModel
 import com.lipton.vpn.NewsState
 import com.lipton.vpn.TrialStart
@@ -785,13 +786,15 @@ fun LoginSuccessScreen(state: UiState, onContinue: () -> Unit) {
             } else {
                 SuccessRow(LiptonIcons.Calendar, "Подписка", "загружаем…", check = false)
             }
-            val limit = state.deviceLimit ?: 5
-            val used = (state.devices?.size ?: state.devicesUsed)?.coerceAtLeast(if (active) 1 else 0)
-            SuccessRow(
-                LiptonIcons.Phone, if (active) "Устройство добавлено" else "Это устройство",
-                listOfNotNull(Build.MODEL, used?.let { "$it из $limit" }).joinToString(" · "),
-                trailing = { if (used != null) DeviceSlots(used, limit) },
-            )
+            if (Features.SHOW_DEVICES) {
+                val limit = state.deviceLimit ?: 5
+                val used = (state.devices?.size ?: state.devicesUsed)?.coerceAtLeast(if (active) 1 else 0)
+                SuccessRow(
+                    LiptonIcons.Phone, if (active) "Устройство добавлено" else "Это устройство",
+                    listOfNotNull(Build.MODEL, used?.let { "$it из $limit" }).joinToString(" · "),
+                    trailing = { if (used != null) DeviceSlots(used, limit) },
+                )
+            }
             SuccessRow(LiptonIcons.Monitor, "Другие устройства", "Как подключить — в Профиле", chevron = true)
         }
         Spacer(Modifier.height(22.dp))

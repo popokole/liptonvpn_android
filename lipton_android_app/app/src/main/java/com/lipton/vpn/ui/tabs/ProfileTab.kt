@@ -67,6 +67,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lipton.vpn.BuildConfig
+import com.lipton.vpn.Features
 import com.lipton.vpn.MainViewModel
 import com.lipton.vpn.UiState
 import com.lipton.vpn.data.model.DeviceItem
@@ -181,7 +182,7 @@ fun ProfileTab(
         }
 
         // ── Устройства ──
-        if (hasActiveSubscription(state) || !state.devices.isNullOrEmpty()) {
+        if (Features.SHOW_DEVICES && (hasActiveSubscription(state) || !state.devices.isNullOrEmpty())) {
             Section("Устройства") {
                 DevicesGroup(state, onRevoke = { confirm = "revoke:$it" }, onRevokeAll = { confirm = "revoke_all" })
             }
