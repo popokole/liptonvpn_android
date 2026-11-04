@@ -21,6 +21,7 @@ import androidx.lifecycle.viewModelScope
 import com.lipton.vpn.BuildConfig
 import com.lipton.vpn.R
 import com.lipton.vpn.data.ApiClient
+import com.lipton.vpn.data.SUBSCRIPTION_DOMAINS
 import com.lipton.vpn.data.BannerLogic
 import com.lipton.vpn.data.SettingsManager
 import com.lipton.vpn.data.SplitMode
@@ -354,7 +355,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun checkClipboard(context: Context, text: String?) {
         if (text.isNullOrBlank()) return
         val url = text.trim()
-        if (!url.startsWith("https://sub.popokole.online/") && !url.startsWith("liptonvpn://")) return
+        if (SUBSCRIPTION_DOMAINS.none { url.startsWith("https://$it/") } && !url.startsWith("liptonvpn://")) return
         viewModelScope.launch {
             val last = settings.getClipboardLastImported()
             if (last == url) return@launch

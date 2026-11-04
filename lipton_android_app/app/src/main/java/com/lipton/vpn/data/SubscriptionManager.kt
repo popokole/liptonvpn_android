@@ -16,7 +16,8 @@ import java.net.UnknownHostException
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
-private const val ALLOWED_DOMAIN = "sub.popokole.online"
+// Домены подписки: новый (videoload.tech) и старый — popokole.online живёт до 14.12.2026.
+val SUBSCRIPTION_DOMAINS = listOf("api.videoload.tech", "sub.popokole.online")
 
 class SubscriptionManager(private val settings: SettingsManager) {
 
@@ -35,8 +36,8 @@ class SubscriptionManager(private val settings: SettingsManager) {
         val parsed = runCatching { java.net.URL(normalized) }.getOrElse {
             throw IllegalArgumentException("Неверный формат ссылки")
         }
-        if (parsed.host != ALLOWED_DOMAIN) {
-            throw IllegalArgumentException("Разрешены только ссылки с домена $ALLOWED_DOMAIN")
+        if (parsed.host !in SUBSCRIPTION_DOMAINS) {
+            throw IllegalArgumentException("Разрешены только ссылки с доменов ${SUBSCRIPTION_DOMAINS.joinToString()}")
         }
         if (parsed.protocol != "https" && parsed.protocol != "http") {
             throw IllegalArgumentException("Ссылка должна начинаться с https://")

@@ -63,6 +63,7 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="liptonvpn" android:host="add" />
                 <data android:scheme="liptonvpn" android:host="sub.popokole.online" />
+                <data android:scheme="liptonvpn" android:host="api.videoload.tech" />
             </intent-filter>
             <meta-data
                 android:name="android.app.shortcuts"
