@@ -204,6 +204,7 @@ object XrayConfigGenerator {
                 val xhttpMap = mutableMapOf<String, Any>("path" to s.path)
                 if (s.host.isNotBlank()) xhttpMap["host"] = s.host
                 if (s.mode?.isNotBlank() == true) xhttpMap["mode"] = s.mode
+                s.xhttpExtra?.let { xhttpMap["extra"] = it }
                 ss[settingsKey] = xhttpMap
             }
             "tcp" -> if (s.headerType == "http") {

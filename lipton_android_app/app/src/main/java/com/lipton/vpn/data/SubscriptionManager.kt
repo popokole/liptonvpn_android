@@ -1,6 +1,7 @@
 package com.lipton.vpn.data
 
 import android.util.Base64
+import com.google.gson.JsonParser
 import com.lipton.vpn.BuildConfig
 import com.lipton.vpn.data.model.Server
 import com.lipton.vpn.data.model.Subscription
@@ -275,6 +276,14 @@ class SubscriptionManager(private val settings: SettingsManager) {
         val u = java.net.URI(cleanUri)
         val params = parseQueryParams(u.rawQuery)
         val host = u.host ?: return@runCatching null
+        val network = params["type"] ?: "tcp"
+        val xhttpExtra = if (network == "xhttp" || network == "splithttp") {
+            params["extra"]?.let { raw ->
+                runCatching { JsonParser.parseString(raw).asJsonObject }.getOrNull()
+            }
+        } else null
+        val mode = params["mode"]?.ifBlank { null }
+            ?: xhttpExtra?.get("mode")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
 
         Server(
             protocol    = "vless",
@@ -282,7 +291,7 @@ class SubscriptionManager(private val settings: SettingsManager) {
             port        = u.port.takeIf { it > 0 } ?: 443,
             uuid        = u.userInfo ?: "",
             remark      = remark.ifBlank { host },
-            network     = params["type"] ?: "tcp",
+            network     = network,
             security    = params["security"] ?: "none",
             flow        = params["flow"] ?: "",
             sni         = params["sni"] ?: host,
@@ -293,14 +302,15 @@ class SubscriptionManager(private val settings: SettingsManager) {
             host        = params["host"] ?: "",
             alpn        = params["alpn"] ?: "",
             serviceName = params["serviceName"] ?: "",
-            mode        = params["mode"]?.ifBlank { null },
+            mode        = mode,
             headerType  = params["headerType"]?.ifBlank { null },
+            xhttpExtra  = xhttpExtra,
         )
     }.getOrNull()
 
     private fun parseVmess(uri: String): Server? = runCatching {
         val json = String(Base64.decode(uri.removePrefix("vmess://"), Base64.DEFAULT))
-        val obj = com.google.gson.JsonParser.parseString(json).asJsonObject
+        val obj = JsonParser.parseString(json).asJsonObject
         Server(
             protocol  = "vmess",
             address   = obj["add"]?.asString ?: return null,

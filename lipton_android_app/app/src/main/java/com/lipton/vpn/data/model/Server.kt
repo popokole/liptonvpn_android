@@ -1,5 +1,6 @@
 package com.lipton.vpn.data.model
 
+import com.google.gson.JsonObject
 import java.util.UUID
 
 data class Server(
@@ -27,6 +28,7 @@ data class Server(
     val headerType: String? = null, // tcp: http (obfuscation)
     val ping: Long? = null,
     val addedAt: Long = System.currentTimeMillis(),
+    val xhttpExtra: JsonObject? = null,
 )
 
 // Флаг страны — пара символов Regional Indicator (U+1F1E6…U+1F1FF). Регулярки
