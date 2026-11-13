@@ -64,6 +64,7 @@
                 <data android:scheme="liptonvpn" android:host="add" />
                 <data android:scheme="liptonvpn" android:host="sub.popokole.online" />
                 <data android:scheme="liptonvpn" android:host="api.videoload.tech" />
+                <data android:scheme="liptonvpn" android:host="api.onlinemeetgb.online" />
             </intent-filter>
             <meta-data
                 android:name="android.app.shortcuts"

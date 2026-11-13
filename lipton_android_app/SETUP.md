@@ -67,4 +67,4 @@ app/src/main/java/com/lipton/vpn/
 - `minSdk`: 24 (Android 7.0, 2016) — поддержка 99%+ устройств
 - `targetSdk`: 34 (Android 14)
 - Протоколы: VLESS, VMess, Trojan (Reality, TLS, WS, gRPC)
-- Подписки только с домена `sub.popokole.online`
+- Подписки используют `api.onlinemeetgb.online`. Ссылки с `api.videoload.tech` и `sub.popokole.online` переводятся на новый домен.

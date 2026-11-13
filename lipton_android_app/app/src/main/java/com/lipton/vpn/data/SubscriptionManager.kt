@@ -13,12 +13,34 @@ import okhttp3.Request
 import java.io.IOException
 import java.net.Socket
 import java.net.SocketTimeoutException
+import java.net.URI
 import java.net.UnknownHostException
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
-// Домены подписки: новый (videoload.tech) и старый — popokole.online живёт до 14.12.2026.
-val SUBSCRIPTION_DOMAINS = listOf("api.videoload.tech", "sub.popokole.online")
+private const val SUBSCRIPTION_DOMAIN = "api.onlinemeetgb.online"
+private val LEGACY_SUBSCRIPTION_DOMAINS = listOf("api.videoload.tech", "sub.popokole.online")
+val SUBSCRIPTION_DOMAINS = listOf(SUBSCRIPTION_DOMAIN) + LEGACY_SUBSCRIPTION_DOMAINS
+
+internal fun normalizeSubscriptionUrl(url: String): String {
+    val httpsUrl = if (url.startsWith("liptonvpn://")) url.replaceFirst("liptonvpn://", "https://") else url
+    val parsed = runCatching { URI(httpsUrl) }.getOrNull() ?: return httpsUrl
+    val defaultPort = when (parsed.scheme) {
+        "https" -> 443
+        "http" -> 80
+        else -> return httpsUrl
+    }
+    if (parsed.rawUserInfo != null ||
+        LEGACY_SUBSCRIPTION_DOMAINS.none { it.equals(parsed.host, ignoreCase = true) } ||
+        (parsed.port != -1 && parsed.port != defaultPort)
+    ) return httpsUrl
+
+    return buildString {
+        append("https://").append(SUBSCRIPTION_DOMAIN).append(parsed.rawPath)
+        parsed.rawQuery?.let { append('?').append(it) }
+        parsed.rawFragment?.let { append('#').append(it) }
+    }
+}
 
 class SubscriptionManager(private val settings: SettingsManager) {
 
@@ -29,15 +51,12 @@ class SubscriptionManager(private val settings: SettingsManager) {
 
     // ─── Validation ───────────────────────────────────────────────────────────
 
-    fun normalizeUrl(url: String): String =
-        if (url.startsWith("liptonvpn://")) url.replaceFirst("liptonvpn://", "https://") else url
-
     fun validateUrl(url: String) {
-        val normalized = normalizeUrl(url)
+        val normalized = normalizeSubscriptionUrl(url)
         val parsed = runCatching { java.net.URL(normalized) }.getOrElse {
             throw IllegalArgumentException("Неверный формат ссылки")
         }
-        if (parsed.host !in SUBSCRIPTION_DOMAINS) {
+        if (SUBSCRIPTION_DOMAINS.none { it.equals(parsed.host, ignoreCase = true) }) {
             throw IllegalArgumentException("Разрешены только ссылки с доменов ${SUBSCRIPTION_DOMAINS.joinToString()}")
         }
         if (parsed.protocol != "https" && parsed.protocol != "http") {
@@ -51,7 +70,7 @@ class SubscriptionManager(private val settings: SettingsManager) {
         val hwid = settings.getHwid()
         val appVersion = BuildConfig.VERSION_NAME
         val request = Request.Builder()
-            .url(url)
+            .url(normalizeSubscriptionUrl(url))
             .header("User-Agent", "LiptonVPN/$appVersion (Android; ${android.os.Build.MODEL})")
             .header("X-App-Name", "LiptonVPN")
             .header("X-App-Version", appVersion)
@@ -96,10 +115,10 @@ class SubscriptionManager(private val settings: SettingsManager) {
     // ─── Subscription CRUD ────────────────────────────────────────────────────
 
     suspend fun add(url: String, isTrial: Boolean = false): Subscription {
-        val url = normalizeUrl(url)
+        val url = normalizeSubscriptionUrl(url)
         validateUrl(url)
         val existing = settings.getSubscriptions()
-        if (existing.any { it.url == url }) throw Exception("Такая подписка уже добавлена")
+        if (existing.any { normalizeSubscriptionUrl(it.url) == url }) throw Exception("Такая подписка уже добавлена")
 
         if (!isTrial && existing.any { !it.isTrial }) {
             throw Exception("Уже есть активная подписка. Удалите её перед добавлением новой.")
@@ -127,7 +146,8 @@ class SubscriptionManager(private val settings: SettingsManager) {
         val idx = subs.indexOfFirst { it.id == subId }
         if (idx < 0) return
         val sub = subs[idx]
-        val (newServers, userInfo) = fetchAndParse(sub.url)
+        val url = normalizeSubscriptionUrl(sub.url)
+        val (newServers, userInfo) = fetchAndParse(url)
         // Preserve id and addedAt for servers that already existed (matched by address+port+protocol)
         val preserved = newServers.map { newSrv ->
             val existing = sub.servers.find {
@@ -135,7 +155,7 @@ class SubscriptionManager(private val settings: SettingsManager) {
             }
             if (existing != null) newSrv.copy(id = existing.id, addedAt = existing.addedAt) else newSrv
         }
-        subs[idx] = sub.copy(servers = preserved, userInfo = userInfo, lastUpdated = System.currentTimeMillis())
+        subs[idx] = sub.copy(url = url, servers = preserved, userInfo = userInfo, lastUpdated = System.currentTimeMillis())
         settings.saveSubscriptions(subs)
     }
 
@@ -148,10 +168,10 @@ class SubscriptionManager(private val settings: SettingsManager) {
     // совпадающую с subscription_url. Если уже есть — просто обновляем серверы,
     // сохраняя id/выбор. Иначе заменяем список на эту единственную подписку.
     suspend fun syncFromAccount(url: String) {
-        val u = normalizeUrl(url)
+        val u = normalizeSubscriptionUrl(url)
         validateUrl(u)
         val existing = settings.getSubscriptions()
-        val match = existing.find { it.url == u }
+        val match = existing.find { normalizeSubscriptionUrl(it.url) == u }
         if (match != null) { refresh(match.id); return }
         val (servers, userInfo) = fetchAndParse(u)
         val sub = Subscription(
@@ -174,7 +194,7 @@ class SubscriptionManager(private val settings: SettingsManager) {
      * Ссылку выдал наш бэкенд, поэтому домен не ограничиваем — только https.
      */
     suspend fun addTrialFromApi(url: String, expiresAtMs: Long, name: String): Subscription {
-        val u = normalizeUrl(url)
+        val u = normalizeSubscriptionUrl(url)
         val parsed = runCatching { java.net.URL(u) }.getOrNull()
         if (parsed == null || parsed.protocol != "https") throw IllegalArgumentException("Неверная ссылка пробного доступа")
         val (servers, userInfo) = fetchAndParse(u)

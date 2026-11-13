@@ -22,6 +22,7 @@ import com.lipton.vpn.BuildConfig
 import com.lipton.vpn.R
 import com.lipton.vpn.data.ApiClient
 import com.lipton.vpn.data.SUBSCRIPTION_DOMAINS
+import com.lipton.vpn.data.normalizeSubscriptionUrl
 import com.lipton.vpn.data.BannerLogic
 import com.lipton.vpn.data.SettingsManager
 import com.lipton.vpn.data.SplitMode
@@ -310,8 +311,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             while (true) {
                 val now = System.currentTimeMillis() / 1000L
                 val own = setOfNotNull(state.value.guest?.subscriptionUrl, state.value.dailyTrial?.subscriptionUrl)
+                    .map(::normalizeSubscriptionUrl)
                 val expired = state.value.subscriptions.filter { sub ->
-                    sub.isTrial && sub.userInfo.expire > 0L && sub.userInfo.expire < now && sub.url !in own
+                    sub.isTrial && sub.userInfo.expire > 0L && sub.userInfo.expire < now && normalizeSubscriptionUrl(sub.url) !in own
                 }
                 if (expired.isNotEmpty()) {
                     expired.forEach { sub ->
@@ -359,7 +361,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val last = settings.getClipboardLastImported()
             if (last == url) return@launch
-            val already = settings.getSubscriptions().any { it.url == url || it.url == url.replaceFirst("liptonvpn://", "https://") }
+            val normalized = normalizeSubscriptionUrl(url)
+            val already = settings.getSubscriptions().any { normalizeSubscriptionUrl(it.url) == normalized }
             if (already) return@launch
             _state.update { it.copy(clipboardUrl = url) }
         }

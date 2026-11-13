@@ -16,6 +16,18 @@ import java.util.TimeZone
 /** Чистая логика волны 2: ошибки API, баннеры, версии, домены, логи, раздельное туннелирование, платежи. */
 class AppLogicTest {
 
+    @Test fun subscriptionDomainMigrationPreservesTheLink() {
+        val suffix = "/ABC%2F123?format=raw%2Bjson#profile"
+        val migrated = "https://api.onlinemeetgb.online$suffix"
+        assertEquals(migrated, normalizeSubscriptionUrl("https://api.videoload.tech$suffix"))
+        assertEquals(migrated, normalizeSubscriptionUrl("liptonvpn://sub.popokole.online$suffix"))
+        assertEquals(migrated, normalizeSubscriptionUrl(migrated))
+        val unrelated = "https://api.videoload.tech.example.invalid$suffix"
+        assertEquals(unrelated, normalizeSubscriptionUrl(unrelated))
+        val nonstandardPort = "https://api.videoload.tech:9443$suffix"
+        assertEquals(nonstandardPort, normalizeSubscriptionUrl(nonstandardPort))
+    }
+
     private val msk = TimeZone.getTimeZone("Europe/Moscow")
 
     private fun iso(s: String): String = s   // для читаемости
